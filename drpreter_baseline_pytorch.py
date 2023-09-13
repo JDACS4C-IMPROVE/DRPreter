@@ -33,7 +33,101 @@ from Model.Similarity import Similarity
 file_path = os.path.dirname(os.path.realpath(__file__))
 
 additional_definitions = [
-    {"name": "", "type": str, "help": "Column name of drug ID"},
+    {
+        "name": "seed",
+        "default": 42,
+        "type": int,
+        "help": "random seed (default: 42)",
+    },
+    {
+        "name": "device",
+        "type": int,
+        "help": "Cuda device (e.g.: 0, 1)",
+    },
+    {
+        "name": "batch_size",
+        "default": 128,
+        "type": int,
+        "help": "Input batch size for training",
+    },
+    {
+        "name": "lr",
+        "default": 0.0001,
+        "type": float,
+        "help": "Learning rate (default: 0.0001)",
+    },
+    {
+        "name": "epochs",
+        "default": 300,
+        "type": int,
+        "help": "Max number of epochs for training",
+    },
+    {
+        "name": "layer",
+        "default": 3,
+        "type": int,
+        "help": "Number of model layers for MLP",
+    },
+    {
+        "name": "hidden_dim",
+        "default": 8,
+        "type": int,
+        "help": "Number of hidden dimensions for MLP",
+    },
+    {
+        "name": "dim_drug",
+        "default": 128,
+        "type": int,
+        "help": "hidden dim for drug (default: 128)",
+    },
+    {
+        "name": "dim_drug_cell",
+        "default": 256,
+        "type": int,
+        "help": "hidden dim for drug and cell (default: 256)",
+    },
+    {
+        "name": "dropout_ratio",
+        "default": 0.1,
+        "type": float,
+        "help": "Dropout ratio (default: 0.1)",
+    },
+    {
+        "name": "patience",
+        "default": 100,
+        "type": int,
+        "help": "patience for early stopping (default: 100)",
+    },
+    {
+        "name": "edge",
+        "default": "STRING",
+        "type": str,
+        "help": "STRING",
+    },
+    {
+        "name": "string_edge",
+        "default": 0.99,
+        "type": float,
+        "help": "Threshold for edges of cell line graph",
+    },
+    {
+        "name": "dataset",
+        "default": "2369disjoint",
+        "type": str,
+        "help": "2369disjoint, 2369joint, COSMIC",
+    },
+    {
+        "name": "trans",
+        "default": "True",
+        "type": bool,
+        "help": "Use transformer or not (default: True)",
+    },
+    {
+        "name": "sim",
+        "default": "False",
+        "type": bool,
+        "help": "Construct homogenous similarity networks or not",
+    },
 ]
 
 required = [
@@ -69,16 +163,35 @@ def launch(args):
 
     rpath = file_path
     result_path = args.output_dir
-    edge_type = "PPI_" + str(args.string_edge) if args.edge == "STRING" else args.edge
-    edge_index = np.load(rpath + f"data/edge_index_{edge_type}_{args.dataset}.npy")
 
-    data = pd.read_csv(rpath + "data/sorted_IC50_82833_580_170.csv")
+    fname = "data_processed.tar.gz"
+    ftp_origin = "https://ftp.mcs.anl.gov/pub/candle/public/improve/model_curation_data/DRPreter/data_processed.tar.gz"
+
+    candle_data_dir_env_var = os.getenv("CANDLE_DATA_DIR")
+    print(f"CANDLE_DATA_DIR: {candle_data_dir_env_var}")
+    candle.get_file(
+        fname=fname,
+        origin=ftp_origin,
+        unpack=True,
+        md5_hash=None,
+        cache_subdir="data_processed",
+    )
+
+    _data_dir = os.path.split(args.cache_subdir)[0]
+    root = os.getenv("CANDLE_DATA_DIR") + "/" + _data_dir
+
+    edge_type = "PPI_" + str(args.string_edge) if args.edge == "STRING" else args.edge
+    edge_index = np.load(
+        rpath + f"data_processed/edge_index_{edge_type}_{args.dataset}.npy"
+    )
+
+    data = pd.read_csv(rpath + "data_processed/sorted_IC50_82833_580_170.csv")
 
     drug_dict = np.load(
-        rpath + "data/drug_feature_graph.npy", allow_pickle=True
+        rpath + "data_processed/drug_feature_graph.npy", allow_pickle=True
     ).item()  # pyg format of drug graph
     cell_dict = np.load(
-        rpath + f"data/cell_feature_std_{args.dataset}.npy", allow_pickle=True
+        rpath + f"data_processed/cell_feature_std_{args.dataset}.npy", allow_pickle=True
     ).item()  # pyg data format of cell graph
 
     example = cell_dict["ACH-000001"]
@@ -99,6 +212,12 @@ def launch(args):
         print(f"num_genes:{args.num_genes}, num_edges:{len(edge_index[0])}")
         print(f"mean degree:{len(edge_index[0]) / args.num_genes}")
 
+    if os.getenv("CUDA_VISIBLE_DEVICES") is not None:
+        print("CUDA_VISIBLE_DEVICES:", os.getenv("CUDA_VISIBLE_DEVICES"))
+        device = "0"
+    else:
+        device = args.device
+
     # ---- [1] Pathway + Transformer ----
     if args.sim is False:
         train_loader, val_loader, test_loader = load_data(
@@ -113,7 +232,7 @@ def launch(args):
             )
         )
 
-        model = DRPreter(args).to(args.device)
+        model = DRPreter(args).to(device)
         # ---- [2] Add similarity information after obtaining embeddings ----
     else:
         train_loader, val_loader, test_loader = load_sim_data(data, args)
@@ -131,7 +250,7 @@ def launch(args):
 
         model = Similarity(
             drug_nodes_data, cell_nodes_data, drug_edges, cell_edges, args
-        ).to(args.device)
+        ).to(device)
 
     result_col = "mse\trmse\tmae\tpcc\tscc"
 
