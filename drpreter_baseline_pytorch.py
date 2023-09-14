@@ -105,19 +105,19 @@ additional_definitions = [
     },
     {
         "name": "edge",
-        "default": "'STRING'",
+        "default": "STRING",
         "type": str,
         "help": "STRING",
     },
     {
         "name": "string_edge",
-        "default": 0.99,
+        "default": 990,
         "type": float,
         "help": "Threshold for edges of cell line graph",
     },
     {
         "name": "dataset",
-        "default": "'2369disjoint'",
+        "default": "disjoint",
         "type": str,
         "help": "2369disjoint, 2369joint, COSMIC",
     },
@@ -173,32 +173,32 @@ def launch(args):
     ftp_origin = "https://ftp.mcs.anl.gov/pub/candle/public/improve/model_curation_data/DRPreter/data_processed.tar.gz"
 
     candle_data_dir = os.getenv("CANDLE_DATA_DIR")
-    print(f"CANDLE_DATA_DIR: {candle_data_dir}")
-    candle.get_file(
-        fname=fname,
-        origin=ftp_origin,
-        unpack=True,
-        md5_hash=None,
-        cache_subdir="data_processed",
-    )
+#    print(f"CANDLE_DATA_DIR: {candle_data_dir}")
+#    candle.get_file(
+#        fname=fname,
+#        origin=ftp_origin,
+#        unpack=True,
+#        md5_hash=None,
+#        cache_subdir="data_processed",
+#    )
 
     edge_type = "PPI_" + str(args.string_edge) if args.edge == "STRING" else args.edge
     edge_index = np.load(
-        rpath + f"data_processed/edge_index_{edge_type}_{args.dataset}.npy"
+        rpath + f"/data_processed/edge_index_{edge_type}_{args.dataset}.npy"
     )
 
-    data = pd.read_csv(rpath + "data_processed/sorted_IC50_82833_580_170.csv")
+    data = pd.read_csv(rpath + "/data_processed/sorted_IC50_82833_580_170.csv")
 
     drug_dict = np.load(
-        rpath + "data_processed/drug_feature_graph.npy", allow_pickle=True
+        rpath + "/data_processed/drug_feature_graph.npy", allow_pickle=True
     ).item()  # pyg format of drug graph
     cell_dict = np.load(
-        rpath + f"data_processed/cell_feature_std_{args.dataset}.npy", allow_pickle=True
+        rpath + f"/data_processed/cell_feature_std_{args.dataset}.npy", allow_pickle=True
     ).item()  # pyg data format of cell graph
 
     example = cell_dict["ACH-000001"]
     args.num_genes = example.x.shape[0]  # 4646
-
+    print('here')
     if "disjoint" in args.dataset:
         gene_list = scatter_add(
             torch.ones_like(example.x.squeeze()), example.x_mask.to(torch.int64)
