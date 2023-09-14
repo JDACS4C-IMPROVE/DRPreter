@@ -1,14 +1,14 @@
 # Candelized DRPreter (Drug Response PREdictor and interpreTER)
 DRPreter: Interpretable Anticancer Drug Response Prediction Using Knowledge-Guided Graph Neural Networks and Transformer
 
-This repository introduces the CANDLE-compliant codebase for the DRPreter Model. It is broken into 3 sections.
+This repository introduces the CANDLE-compliant codebase for the DRPreter Model.
 
 ## Installation
 
 To install the necessary packages to run the training we can use `conda`:
 
 ```bash
-conda create env -n drpreter python=3.11 pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+conda create -n drpreter python=3.11 pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
 
 conda activate drpreter
 ```
