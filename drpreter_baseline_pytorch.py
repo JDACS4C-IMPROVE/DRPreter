@@ -13,7 +13,6 @@ from torch_scatter import scatter_add
 
 import candle
 
-
 from utils import (
     set_random_seed,
     train,
@@ -67,6 +66,12 @@ additional_definitions = [
         "default": 3,
         "type": int,
         "help": "Number of model layers for MLP",
+    },
+    {
+        "name": "layer_drug",
+        "default": 3,
+        "type": int,
+        "help": "Number of model drug layers for MLP",
     },
     {
         "name": "hidden_dim",
@@ -167,8 +172,8 @@ def launch(args):
     fname = "data_processed.tar.gz"
     ftp_origin = "https://ftp.mcs.anl.gov/pub/candle/public/improve/model_curation_data/DRPreter/data_processed.tar.gz"
 
-    candle_data_dir_env_var = os.getenv("CANDLE_DATA_DIR")
-    print(f"CANDLE_DATA_DIR: {candle_data_dir_env_var}")
+    candle_data_dir = os.getenv("CANDLE_DATA_DIR")
+    print(f"CANDLE_DATA_DIR: {candle_data_dir}")
     candle.get_file(
         fname=fname,
         origin=ftp_origin,
@@ -176,9 +181,6 @@ def launch(args):
         md5_hash=None,
         cache_subdir="data_processed",
     )
-
-    _data_dir = os.path.split(args.cache_subdir)[0]
-    root = os.getenv("CANDLE_DATA_DIR") + "/" + _data_dir
 
     edge_type = "PPI_" + str(args.string_edge) if args.edge == "STRING" else args.edge
     edge_index = np.load(
