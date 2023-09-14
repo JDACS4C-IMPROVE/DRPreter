@@ -23,7 +23,6 @@ dependencies:
       - astropy==5.3.3
       - asttokens==2.4.0
       - backcall==0.2.0
-      - candle==0.0.1
       - certifi==2023.7.22
       - charset-normalizer==3.2.0
       - contourpy==1.1.0
@@ -57,7 +56,6 @@ dependencies:
       - ptyprocess==0.7.0
       - pure-eval==0.2.2
       - pyerfa==2.0.0.3
-      - pyg-lib==0.2.0+pt20
       - pygments==2.16.1
       - pyparsing==3.0.9
       - python-dateutil==2.8.2
@@ -72,11 +70,6 @@ dependencies:
       - sympy==1.12
       - threadpoolctl==3.2.0
       - torch==2.0.1
-      - torch-cluster==1.6.1
-      - torch-geometric==2.3.1
-      - torch-scatter==2.1.1
-      - torch-sparse==0.6.17
-      - torch-spline-conv==1.2.2
       - torchaudio==2.0.2
       - torchvision==0.15.2
       - tqdm==4.66.1

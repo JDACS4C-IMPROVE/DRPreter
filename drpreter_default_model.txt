@@ -14,7 +14,7 @@ dropout_ratio=0.1
 patience=100
 
 string_edge=0.99
-edge=STRING
+edge='STRING'
 trans=True
 sim=False
 

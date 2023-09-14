@@ -51,7 +51,7 @@ additional_definitions = [
         "help": "Input batch size for training",
     },
     {
-        "name": "lr",
+        "name": "learning_rate",
         "default": 0.0001,
         "type": float,
         "help": "Learning rate (default: 0.0001)",
@@ -100,7 +100,7 @@ additional_definitions = [
     },
     {
         "name": "edge",
-        "default": "STRING",
+        "default": "'STRING'",
         "type": str,
         "help": "STRING",
     },
@@ -112,7 +112,7 @@ additional_definitions = [
     },
     {
         "name": "dataset",
-        "default": "2369disjoint",
+        "default": "'2369disjoint'",
         "type": str,
         "help": "2369disjoint, 2369joint, COSMIC",
     },
@@ -260,7 +260,7 @@ def launch(args):
     with open(results_path, "w", encoding="utf-8") as f:
         f.write(result_col + "\n")
     criterion = nn.MSELoss()
-    opt = torch.optim.Adam(model.parameters(), lr=args.lr)
+    opt = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
     state_dict_name = (
         f"{rpath}weights/weight_sim_seed{args.seed}.pth"
