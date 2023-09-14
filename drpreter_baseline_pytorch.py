@@ -40,6 +40,7 @@ additional_definitions = [
     },
     {
         "name": "device",
+        "default": 0,
         "type": int,
         "help": "Cuda device (e.g.: 0, 1)",
     },
@@ -119,7 +120,7 @@ additional_definitions = [
         "name": "dataset",
         "default": "disjoint",
         "type": str,
-        "help": "2369disjoint, 2369joint, COSMIC",
+        "help": "disjoint, joint, COSMIC",
     },
     {
         "name": "trans",
@@ -141,6 +142,7 @@ required = [
     "learning_rate",
     "patience",
     "output_dir",
+    "device",
 ]
 
 
@@ -173,14 +175,14 @@ def launch(args):
     ftp_origin = "https://ftp.mcs.anl.gov/pub/candle/public/improve/model_curation_data/DRPreter/data_processed.tar.gz"
 
     candle_data_dir = os.getenv("CANDLE_DATA_DIR")
-#    print(f"CANDLE_DATA_DIR: {candle_data_dir}")
-#    candle.get_file(
-#        fname=fname,
-#        origin=ftp_origin,
-#        unpack=True,
-#        md5_hash=None,
-#        cache_subdir="data_processed",
-#    )
+    print(f"CANDLE_DATA_DIR: {candle_data_dir}")
+    candle.get_file(
+        fname=fname,
+        origin=ftp_origin,
+        unpack=True,
+        md5_hash=None,
+        cache_subdir="data_processed",
+    )
 
     edge_type = "PPI_" + str(args.string_edge) if args.edge == "STRING" else args.edge
     edge_index = np.load(
@@ -193,12 +195,14 @@ def launch(args):
         rpath + "/data_processed/drug_feature_graph.npy", allow_pickle=True
     ).item()  # pyg format of drug graph
     cell_dict = np.load(
-        rpath + f"/data_processed/cell_feature_std_{args.dataset}.npy", allow_pickle=True
+        rpath + f"/data_processed/cell_feature_std_{args.dataset}.npy",
+        allow_pickle=True,
     ).item()  # pyg data format of cell graph
 
     example = cell_dict["ACH-000001"]
+    args.num_feature = example.x.shape[1]
     args.num_genes = example.x.shape[0]  # 4646
-    print('here')
+    print("here")
     if "disjoint" in args.dataset:
         gene_list = scatter_add(
             torch.ones_like(example.x.squeeze()), example.x_mask.to(torch.int64)
