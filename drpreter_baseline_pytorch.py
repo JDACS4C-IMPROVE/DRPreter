@@ -269,9 +269,9 @@ def launch(args):
     opt = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
     state_dict_name = (
-        f"{rpath}weights/weight_sim_seed{args.seed}.pth"
+        f"{rpath}/weights/weight_sim_seed{args.seed}.pth"
         if args.sim is True
-        else f"{rpath}weights/weight_seed{args.seed}.pth"
+        else f"{rpath}/weights/weight_seed{args.seed}.pth"
     )
     stopper = EarlyStopping(
         mode="lower", patience=args.patience, filename=state_dict_name
@@ -327,7 +327,16 @@ def launch(args):
         sep="\t",
         index=0,
     )
-    scores = df
+
+    raw_scores = {
+        "val_loss": [r4(val_MSE)],
+        "val_MAE": [r4(val_MAE)],
+        "val_SCC": [r4(val_SCC)],
+        "val_PCC": [r4(val_PCC)],
+        "val_RMSE": [r4(val_RMSE)],
+    }
+    scores = pd.DataFrame.from_dict(raw_scores)
+
     return scores
 
 
@@ -336,13 +345,12 @@ def run(gParameters):
     scores = launch(args)
 
     # Supervisor HPO
-
     val_scores = {
-        "val_loss": scores["val_MSE"],
-        "mae": scores["val_MAE"],
-        "scc": scores["val_SCC"],
-        "pcc": scores["val_PCC"],
-        "rmse": scores["val_RMSE"],
+        "val_loss": float(scores["val_loss"].iloc[-1]),
+        "mae": float(scores["val_MAE"].iloc[-1]),
+        "scc": float(scores["val_SCC"].iloc[-1]),
+        "pcc": float(scores["val_PCC"].iloc[-1]),
+        "rmse": float(scores["val_RMSE"].iloc[-1]),
     }
 
     print(f"\nIMPROVE_RESULT val_loss:\t{val_scores}\n")
