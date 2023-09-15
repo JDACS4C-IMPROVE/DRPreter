@@ -9,23 +9,23 @@ From: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel
 
 %post
     # Install basic dependencies
-    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F60F4B3D7FA2AF80
-    apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC
-  
-    apt-get update && apt-get install -y \
-        cmake \
-        git \	
-        python3-pip \
-	wget \
-	mg \
-        && rm -rf /var/lib/apt/lists/*
+    #apt-key adv --keyserver keyserver.ubuntu.com --recv-keys F60F4B3D7FA2AF80
+    #apt-key adv --keyserver keyserver.ubuntu.com --recv-keys A4B469963BF863CC
+
+    apt-get update
+    apt-get install -y git
+    apt-get install -y wget
+    apt-get install -y mg
+    /opt/conda/bin/conda install -y -c anaconda pip
+
+    rm -rf /var/lib/apt/lists/*
 
     chmod +x Singularity_gpu_fix.sh
     ./Singularity_gpu_fix.sh
 
     # Move to /usr/local
     cd /usr/local
-    git clone https://github.com/JDACS4C-IMPROVE/DRPreter.git /tmp/DRPreter
+    git clone https://github.com/JDACS4C-IMPROVE/DRPreter.git
     cd DRPreter
     git checkout develop
     cp infer.sh /usr/local/bin
@@ -34,10 +34,10 @@ From: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-devel
     chmod +x /usr/local/bin/train.sh
 
     # Install Python packages using pip
-    pip3 install --no-cache-dir -r requirements.txt
+    /opt/conda/bin/pip install --no-cache-dir -r requirements.txt
 
     # Individually install remainder of torch-geometric packages
-    pip3 install --no-cache-dir pip install pyg-lib torch-cluster torch-scatter torch-sparse torch-spline-conv -f https://data.pyg.org/whl/torch-2.0.1+cu117.html
-    
-    # 
+    /opt/conda/bin/pip install --no-cache-dir pip install pyg-lib torch-cluster torch-scatter torch-sparse torch-spline-conv -f https://data.pyg.org/whl/torch-2.0.1+cu117.html
+
+    # Make CANDLE_DATA_DIR
     mkdir /candle_data_dir
