@@ -181,7 +181,7 @@ def launch(args):
         origin=ftp_origin,
         unpack=True,
         md5_hash=None,
-        cache_subdir="data_processed",
+        cache_subdir="",
     )
 
     edge_type = "PPI_" + str(args.string_edge) if args.edge == "STRING" else args.edge
@@ -269,9 +269,9 @@ def launch(args):
     opt = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
     state_dict_name = (
-        f"{rpath}/weights/weight_sim_seed{args.seed}.pth"
+        f"{args.output_dir}/weight_sim_seed{args.seed}.pth"
         if args.sim is True
-        else f"{rpath}/weights/weight_seed{args.seed}.pth"
+        else f"{args.output_dir}/weight_seed{args.seed}.pth"
     )
     stopper = EarlyStopping(
         mode="lower", patience=args.patience, filename=state_dict_name
