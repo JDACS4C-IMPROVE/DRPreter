@@ -186,16 +186,16 @@ def launch(args):
 
     edge_type = "PPI_" + str(args.string_edge) if args.edge == "STRING" else args.edge
     edge_index = np.load(
-        rpath + f"/data_processed/edge_index_{edge_type}_{args.dataset}.npy"
+        candle_data_dir + f"/data_processed/edge_index_{edge_type}_{args.dataset}.npy"
     )
 
-    data = pd.read_csv(rpath + "/data_processed/sorted_IC50_82833_580_170.csv")
+    data = pd.read_csv(candle_data_dir + "/data_processed/sorted_IC50_82833_580_170.csv")
 
     drug_dict = np.load(
-        rpath + "/data_processed/drug_feature_graph.npy", allow_pickle=True
+        candle_data_dir + "/data_processed/drug_feature_graph.npy", allow_pickle=True
     ).item()  # pyg format of drug graph
     cell_dict = np.load(
-        rpath + f"/data_processed/cell_feature_std_{args.dataset}.npy",
+        candle_data_dir + f"/data_processed/cell_feature_std_{args.dataset}.npy",
         allow_pickle=True,
     ).item()  # pyg data format of cell graph
 
@@ -269,9 +269,9 @@ def launch(args):
     opt = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
     state_dict_name = (
-        f"{args.output_dir}/weight_sim_seed{args.seed}.pth"
+        f"{candle_data_di}/weights/weight_sim_seed{args.seed}.pth"
         if args.sim is True
-        else f"{args.output_dir}/weight_seed{args.seed}.pth"
+        else f"{candle_data_dir}/weights/weight_seed{args.seed}.pth"
     )
     stopper = EarlyStopping(
         mode="lower", patience=args.patience, filename=state_dict_name
