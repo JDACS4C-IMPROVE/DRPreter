@@ -40,9 +40,9 @@ additional_definitions = [
     },
     {
         "name": "device",
-        "default": 0,
-        "type": int,
-        "help": "Cuda device (e.g.: 0, 1)",
+        "default": "cuda:0",
+        "type": str,
+        "help": "Cuda device (e.g.: cuda:0, cuda:1)",
     },
     {
         "name": "batch_size",
@@ -220,7 +220,7 @@ def launch(args):
 
     if os.getenv("CUDA_VISIBLE_DEVICES") is not None:
         print("CUDA_VISIBLE_DEVICES:", os.getenv("CUDA_VISIBLE_DEVICES"))
-        device = "0"
+        device=f"cuda:{int(os.getenv('CUDA_VISIBLE_DEVICES'))}"
     else:
         device = args.device
 
