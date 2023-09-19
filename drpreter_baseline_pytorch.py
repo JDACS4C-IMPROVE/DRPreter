@@ -182,6 +182,7 @@ def launch(args):
         unpack=True,
         md5_hash=None,
         cache_subdir="",
+        datadir=candle_data_dir,
     )
 
     edge_type = "PPI_" + str(args.string_edge) if args.edge == "STRING" else args.edge
@@ -269,9 +270,9 @@ def launch(args):
     opt = torch.optim.Adam(model.parameters(), lr=args.learning_rate)
 
     state_dict_name = (
-        f"{candle_data_di}/weights/weight_sim_seed{args.seed}.pth"
+        f"{candle_data_dir}/weight_sim_seed{args.seed}.pth"
         if args.sim is True
-        else f"{candle_data_dir}/weights/weight_seed{args.seed}.pth"
+        else f"{candle_data_dir}/weight_seed{args.seed}.pth"
     )
     stopper = EarlyStopping(
         mode="lower", patience=args.patience, filename=state_dict_name
