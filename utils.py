@@ -17,14 +17,15 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import openpyxl
 
+def load_sim_data():
+    rpath = './'
+    dict_dir = rpath + 'Data/Similarity/dict/'
+    cell_id2idx_dict = np.load(dict_dir+'cell_id2idx_dict', allow_pickle=True)
+    drug_name2idx_dict = np.load(dict_dir+'drug_name2idx_dict', allow_pickle=True)
+    cell_idx2id_dict = np.load(dict_dir+'cell_idx2id_dict', allow_pickle=True)
+    drug_idx2name_dict = np.load(dict_dir+'drug_idx2name_dict', allow_pickle=True)
 
-rpath = './'
-dict_dir = rpath + 'Data/Similarity/dict/'
-cell_id2idx_dict = np.load(dict_dir+'cell_id2idx_dict', allow_pickle=True)
-drug_name2idx_dict = np.load(dict_dir+'drug_name2idx_dict', allow_pickle=True)
-cell_idx2id_dict = np.load(dict_dir+'cell_idx2id_dict', allow_pickle=True)
-drug_idx2name_dict = np.load(dict_dir+'drug_idx2name_dict', allow_pickle=True)
-
+    return dict_dir, cell_id2idx_dict, drug_name2idx_dict, cell_idx2id_dict, drug_idx2name_dict
 
 def r4(value):
     if isinstance(value, np.ndarray):    
