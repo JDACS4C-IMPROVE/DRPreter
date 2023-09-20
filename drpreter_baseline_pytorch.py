@@ -219,12 +219,17 @@ def launch(args):
         print(f"num_genes:{args.num_genes}, num_edges:{len(edge_index[0])}")
         print(f"mean degree:{len(edge_index[0]) / args.num_genes}")
 
+    print('CPU/GPU: ', torch.cuda.is_available())
     if os.getenv("CUDA_VISIBLE_DEVICES") is not None:
         print("CUDA_VISIBLE_DEVICES:", os.getenv("CUDA_VISIBLE_DEVICES"))
-        device=f"cuda:{int(os.getenv('CUDA_VISIBLE_DEVICES'))}"
+        #cuda_name = f"cuda:{int(os.getenv('CUDA_VISIBLE_DEVICES'))}"
+        cuda_name = "cuda:0"
     else:
-        device = args.device
+        cuda_name = args.device
 
+    # Setting appropriate device
+    device = torch.device(cuda_name if torch.cuda.is_available() else "cpu")
+    
     # ---- [1] Pathway + Transformer ----
     if args.sim is False:
         train_loader, val_loader, test_loader = load_data(
