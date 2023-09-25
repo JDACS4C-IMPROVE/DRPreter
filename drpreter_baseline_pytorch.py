@@ -358,8 +358,9 @@ def run(gParameters):
         "pcc": float(scores["val_PCC"].iloc[-1]),
         "rmse": float(scores["val_RMSE"].iloc[-1]),
     }
-
-    print(f"\nIMPROVE_RESULT val_loss:\t{val_scores}\n")
+    
+    val_loss = val_scores["val_loss"]
+    print(f"\nIMPROVE_RESULT val_loss:\t{val_loss}\n")
     with open(Path(args.output_dir) / "scores.json", "w", encoding="utf-8") as f:
         json.dump(val_scores, f, ensure_ascii=False, indent=4)
     return scores
