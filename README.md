@@ -43,9 +43,18 @@ https://data.pyg.org/whl/torch-2.0.1+cu118.html
 
 To run the model after creating the conda environment, we can run the following commands:
 
+To preprocess:
+```bash
+python preprocess.py --train_data_name ccle --val_data_name ccle --test_data_name ccle --train_split_file_name split_0_tr_id --val_split_file_name split_0_vl_id --test_split_file_name split_0_te_id --y_col_name CancID --outdir csa_data/ml_data
+```
+
+To train:
+
+
 ```bash
 sh DRPreter/train.sh $(CUDA_VISIBLE_DEVICES) $(CANDLE_DATA_DIR)
 ```
+
 
 ### With Singularity
 

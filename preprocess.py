@@ -23,7 +23,7 @@ from tqdm import trange, tqdm
 import sys
 import argparse
 from pathlib import Path
-from candle import get_file
+import candle
 import improve_utils as imp
 from improve_utils import improve_globals as ig
 
@@ -261,7 +261,7 @@ def raw_to_preprocessed(args):
     download = False
     if download:
         ftp_origin = f"https://ftp.mcs.anl.gov/pub/candle/public/improve/IMP_data"
-        data_file_list = [f"data.{args.source_data_name}.zip"]
+        data_file_list = [f"data.{args.train_data_name}.zip"]
         for f in data_file_list:
             candle.get_file(
                 fname=f,
