@@ -1,11 +1,12 @@
-#From drug_graph.py
+# From drug_graph.py
 from rdkit import Chem
 import numpy as np
 import pandas as pd
 import torch
 import torch_geometric
 from dgllife.utils import *
-#From cellline_graph.py
+
+# From cellline_graph.py
 import os
 import csv
 import scipy
@@ -17,40 +18,50 @@ from sklearn.impute import SimpleImputer
 from scipy import sparse
 import pickle
 from tqdm import trange, tqdm
-#From CANDLE
-import candle
+
+# From CANDLE
+import sys
+import argparse
+from pathlib import Path
+from candle import get_file
 import improve_utils as imp
+from improve_utils import improve_globals as ig
+
 
 # CANDLE implementation of the DRPreter preprocess scripts
 
-fdir = Path(__file__).resolve().parent 
+fdir = Path(__file__).resolve().parent
+
+with open("Data/Cell/34pathway_score990.pkl", "rb") as file:
+    kegg = pickle.load(file)
 
 """
 Functions below are used to generate Cell Line Graph
 """
 
-def download_string_dataset():
 
-    string_data = candle.get_file('9606.proteins.links.v12.0.txt.gz',
-                                  'https://stringdb-downloads.org/download/protein.links.v12.0/9606.protein.links.v12.0.txt.gz',
-                                  unpack=True,
-                                  datadir='./data')
+def download_string_dataset():
+    string_data = get_file(
+        "9606.proteins.links.v12.0.txt.gz",
+        "https://stringdb-downloads.org/download/protein.links.v12.0/9606.protein.links.v12.0.txt.gz",
+        unpack=True,
+    )
 
     return string_data
 
-def download_kegg_pathways():
 
-    kegg_pathway = candle.get_file('34pathway_score990.pkl', '', datadir='./data')
+def download_kegg_pathways():
+    kegg_pathway = get_file("34pathway_score990.pkl", "", datadir="./data")
 
     return kegg_pathway
 
-def save_cell_graph(gene_path, save_path, type):
-    if os.path.exists(os.path.join(save_path, 'cell_feature_std_{}.npy'.format(type))):
-        print('already exists!')
+
+def save_cell_graph(gene_expression, save_path, graph_type):
+    if Path(Path(save_path) / "cell_feature_std_{type}.npy").exists():
+        print("already exists!")
     else:
-        exp = imp.load_gene_expression(gene_system_identifier="Gene_Symbol",
-                                   sep= "\t",
-                                   verbose= True).format(type) # This is used to load in the gene expression data frame with the correct IMPROVE cell lines
+        exp = gene_expression
+        exp.columns = exp.columns.str[3:]
         index = exp.index
         columns = exp.columns
 
@@ -69,9 +80,8 @@ def save_cell_graph(gene_path, save_path, type):
         cell_dict = {}
 
         for i in tqdm((cell_names)):
-
             # joint graph (without pathway)
-            if type == 'joint':
+            if type == "joint":
                 gene_list = exp.columns.to_list()
                 gene_list = set()
                 for pw in kegg:
@@ -95,22 +105,27 @@ def save_cell_graph(gene_path, save_path, type):
                             x_mask.append(p)
                     x.append(exp.loc[i, gene_list[pw]])
                 x = pd.concat(x)
-                cell_dict[i] = Data(x=torch.tensor([x], dtype=torch.float).T, x_mask=torch.tensor(x_mask, dtype=torch.int))
+                cell_dict[i] = Data(
+                    x=torch.tensor([x], dtype=torch.float).T,
+                    x_mask=torch.tensor(x_mask, dtype=torch.int),
+                )
 
         print(cell_dict)
-        np.save(os.path.join(save_path, 'cell_feature_std_{}.npy').format(type), cell_dict)
+        np.save(os.path.join(save_path, f"cell_feature_std_{graph_type}.npy"), cell_dict)
         print("finish saving cell data!")
         return gene_list
 
 
-def get_STRING_edges(gene_path, ppi_threshold, type, gene_list):
-    save_path = os.path.join(gene_path, 'edge_index_{}_{}.npy'.format(ppi_threshold, type))
+def get_STRING_edges(gene_path, ppi_threshold, graph_type, gene_list):
+    save_path = ig.ml_data_dir / f"edge_index_{ppi_threshold}_{graph_type}.npy"
     if not os.path.exists(save_path):
         # gene_list
-        ppi = pd.read_csv(os.path.join(gene_path, 'Expression_Data_{}.csv'.format(ppi_threshold)), index_col=0)
+        ppi = pd.read_csv(gene_path / f"CCLE_2369_{ppi_threshold}.csv", index_col=0)
+
+        print("Loaded File")
 
         # joint graph (without pathway)
-        if type == 'joint':
+        if type == "joint":
             ppi = ppi.loc[gene_list, gene_list].values
             sparse_mx = sparse.csr_matrix(ppi).tocoo().astype(np.float32)
             edge_index = np.vstack((sparse_mx.row, sparse_mx.col))
@@ -119,7 +134,7 @@ def get_STRING_edges(gene_path, ppi_threshold, type, gene_list):
         else:
             edge_index = []
             for pw in gene_list:
-                sub_ppi  = ppi.loc[gene_list[pw], gene_list[pw]]
+                sub_ppi = ppi.loc[gene_list[pw], gene_list[pw]]
                 sub_sparse_mx = sparse.csr_matrix(sub_ppi).tocoo().astype(np.float32)
                 sub_edge_index = np.vstack((sub_sparse_mx.row, sub_sparse_mx.col))
                 edge_index.append(sub_edge_index)
@@ -128,16 +143,16 @@ def get_STRING_edges(gene_path, ppi_threshold, type, gene_list):
         # Conserve edge_index
         print(len(edge_index[0]))
         np.save(
-            os.path.join(rpath + './data', 'edge_index_{}_{}.npy'.format(ppi_threshold, type)),
-            edge_index)
+            ig.ml_data_dir / f"edge_index_{ppi_threshold}_{graph_type}.npy",
+            edge_index,
+        )
     else:
         edge_index = np.load(save_path)
 
     return edge_index
 
-"""
-Functions below are used to generate Drug Graph
-"""
+
+# Drug Graph Preprocessing
 def atom_to_feature_vector(atom):
     """
     Converts rdkit atom object to feature list of indices
@@ -145,17 +160,20 @@ def atom_to_feature_vector(atom):
     :return: list
     8 features are canonical, 2 features are from OGB
     """
-    featurizer_funcs = ConcatFeaturizer([atom_type_one_hot,
-                                         atom_degree_one_hot,
-                                         atom_implicit_valence_one_hot,
-                                         atom_formal_charge,
-                                         atom_num_radical_electrons,
-                                         atom_hybridization_one_hot,
-                                         atom_is_aromatic,
-                                         atom_total_num_H_one_hot,
-                                         atom_is_in_ring,
-                                         atom_chirality_type_one_hot,
-                                         ])
+    featurizer_funcs = ConcatFeaturizer(
+        [
+            atom_type_one_hot,
+            atom_degree_one_hot,
+            atom_implicit_valence_one_hot,
+            atom_formal_charge,
+            atom_num_radical_electrons,
+            atom_hybridization_one_hot,
+            atom_is_aromatic,
+            atom_total_num_H_one_hot,
+            atom_is_in_ring,
+            atom_chirality_type_one_hot,
+        ]
+    )
     atom_feature = featurizer_funcs(atom)
     return atom_feature
 
@@ -166,11 +184,14 @@ def bond_to_feature_vector(bond):
     :param mol: rdkit bond object
     :return: list
     """
-    featurizer_funcs = ConcatFeaturizer([bond_type_one_hot,
-                                         # bond_is_conjugated,
-                                         # bond_is_in_ring,
-                                         # bond_stereo_one_hot,
-                                         ])
+    featurizer_funcs = ConcatFeaturizer(
+        [
+            bond_type_one_hot,
+            # bond_is_conjugated,
+            # bond_is_in_ring,
+            # bond_stereo_one_hot,
+        ]
+    )
     bond_feature = featurizer_funcs(bond)
 
     return bond_feature
@@ -195,7 +216,7 @@ def smiles2graph(mol):
     x = np.array(atom_features_list, dtype=np.int64)
 
     # bonds
-#     num_bond_features = 3  # bond type, bond stereo, is_conjugated
+    #     num_bond_features = 3  # bond type, bond stereo, is_conjugated
     num_bond_features = 1  # bond type
     if len(mol.GetBonds()) > 0:  # mol has bonds
         edges_list = []
@@ -222,46 +243,166 @@ def smiles2graph(mol):
         edge_index = np.empty((2, 0), dtype=np.int64)
         edge_attr = np.empty((0, num_bond_features), dtype=np.int64)
 
-    graph = Data(x=torch.tensor(x, dtype=torch.float),
-                 edge_index=torch.tensor(edge_index, dtype=torch.long),
-                 edge_attr=torch.tensor(edge_attr), dtype=torch.float)
+    graph = Data(
+        x=torch.tensor(x, dtype=torch.float),
+        edge_index=torch.tensor(edge_index, dtype=torch.long),
+        edge_attr=torch.tensor(edge_attr),
+        dtype=torch.float,
+    )
 
     return graph
 
 
-def save_drug_graph():
-    smi = imp.load_smiles_data()
-    smi = smi.rename(columns={"smiles": "SMILES"})
-    drug_dict = {}
-    for i in range(len(smiles)):
-        drug_dict[smiles.iloc[i, 0]] = smiles2graph(smiles.iloc[i, 2])
-    np.save('./data/drug_feature_graph.npy', drug_dict) # Check this path
-    return drug_dict
+def raw_to_preprocessed(args):
+    root = ig.ml_data_dir
+    os.makedirs(root, exist_ok=True)
 
-def main(args):
-
-    # Load in arguments needed for preprocessing
-    args = parse_args()
-
-    download = True
-    #download = False
+    # download = True
+    download = False
     if download:
         ftp_origin = f"https://ftp.mcs.anl.gov/pub/candle/public/improve/IMP_data"
         data_file_list = [f"data.{args.source_data_name}.zip"]
         for f in data_file_list:
-            candle.get_file(fname=f,
-                            origin=os.path.join(ftp_origin, f.strip()),
-                            unpack=False, md5_hash=None,
-                            cache_subdir=None,
-                            datadir=raw_data_dir) # cache_subdir=args.cache_subdir
-    
+            candle.get_file(
+                fname=f,
+                origin=os.path.join(ftp_origin, f.strip()),
+                unpack=True,
+                md5_hash=None,
+                cache_subdir=None,
+                datadir=ig.raw_data_dir,
+            )
+
+    # Load Train, Test, Val Response Data
+
+    print("\nLoad response train data ...")
+    rs_tr = imp.load_single_drug_response_data_v2(
+        source=args.train_data_name,
+        split_file_name=args.train_split_file_name,
+        y_col_name=args.y_col_name,
+        sep=",",
+        verbose=True,
+    )
+
+    print("\nLoad response val data ...")
+    rs_vl = imp.load_single_drug_response_data_v2(
+        source=args.val_data_name,
+        split_file_name=args.val_split_file_name,
+        y_col_name=args.y_col_name,
+        sep=",",
+        verbose=True,
+    )
+
+    print("\nLoad response test data ...")
+    rs_te = imp.load_single_drug_response_data_v2(
+        source=args.test_data_name,
+        split_file_name=args.test_split_file_name,
+        y_col_name=args.y_col_name,
+        sep=",",
+        verbose=True,
+    )
+
+    # Load gene expression data
+    ge_path = Path(ig.raw_data_dir) / f"x_data/ge.csv"
+    ge = pd.read_csv(ig.gene_expression_file_path, sep=",", index_col=0)
+
+    gene_list = save_cell_graph(ge, root, "disjoint")
+
+    edge_index = get_STRING_edges(
+        gene_path=fdir / "Data/Cell",
+        ppi_threshold="PPI_990",
+        graph_type="disjoint",
+        gene_list=gene_list,
+    )
+    print(f"edge_index: {edge_index}")
+
+    # Load SMILES and build drug features
+    smi = imp.load_smiles_data()
+    drug_dict = {}
+    for i in range(len(smi)):
+        drug_dict[smi.iloc[i, 0]] = smiles2graph(smi.iloc[i, 1])
+    np.save(Path(root) / "drug_feature_graph.npy", drug_dict)  # Check this path
+
+    return ig.ml_data_dir
+
+
+def parse_args(args):
+    """Parse input arguments"""
+
+    parser = argparse.ArgumentParser()
+
+    # IMPROVE Required args
+    parser.add_argument(
+        "--train_data_name",
+        type=str,
+        required=True,
+        help="Data source name.",
+    )
+    parser.add_argument(
+        "--val_data_name",
+        type=str,
+        default=None,
+        required=False,
+        help="Data target name (not required for GraphDRP).",
+    )
+    parser.add_argument(
+        "--test_data_name",
+        type=str,
+        default=None,
+        required=False,
+        help="Data target name (not required for GraphDRP).",
+    )
+    parser.add_argument(
+        "--train_split_file_name",
+        type=str,
+        nargs="+",
+        required=True,
+        help="The path to the file that contains the split ids (e.g., 'split_0_tr_id',  'split_0_vl_id').",
+    )
+    parser.add_argument(
+        "--val_split_file_name",
+        type=str,
+        nargs="+",
+        required=True,
+        help="The path to the file that contains the split ids (e.g., 'split_0_tr_id',  'split_0_vl_id').",
+    )
+    parser.add_argument(
+        "--test_split_file_name",
+        type=str,
+        nargs="+",
+        required=True,
+        help="The path to the file that contains the split ids (e.g., 'split_0_tr_id',  'split_0_vl_id').",
+    )
+    parser.add_argument(
+        "--y_col_name",
+        type=str,
+        required=True,
+        help="Drug sensitivity score to use as the target variable (e.g., IC50, AUC).",
+    )
+    parser.add_argument(
+        "--outdir",
+        type=str,
+        required=True,
+        help="Output dir to store the generated ML data files (e.g., 'split_0_tr').",
+    )
+    parser.add_argument("--receipt", type=str, required=False, help="...")
+
+    args = parser.parse_args(args)
+    return args
+
+
+def main(args):
+    # Load in arguments needed for preprocessing
+    args = parse_args(args)
+    ml_data_path = raw_to_preprocessed(args)
+    print(f"\nML data path:\t\n{ml_data_path}")
+    print("\nFinished pre-processing (transformed raw DRP data to model input ML data).")
+
+    return ml_data_path
+
 
 """
 Main Run Method
 """
 
-if __name__=="__main__":
-    gParameters = initialize_parameters()
-    args = candle.ArgumentStruct(**gParameters)
-    loader = DataLoader(args)
-
+if __name__ == "__main__":
+    main(sys.argv[1:])
