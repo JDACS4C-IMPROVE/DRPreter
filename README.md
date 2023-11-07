@@ -27,6 +27,9 @@ There are a few specific packages that requires their own individual install dep
 
 ```bash
 pip install pyg-lib torch-cluster torch-scatter torch-sparse torch-spline-conv -f https://data.pyg.org/whl/torch-${TORCH}+${CUDA}.html`
+
+pip install  dgl -f https://data.dgl.ai/wheels/$(CUDA)/repo.html
+pip install  dglgo -f https://data.dgl.ai/wheels-test/repo.html
 ```
 
 Where `$(TORCH)` is your current version of PyTorch and `$(CUDA)` is the version of CUDA. For the requirements file listed, this model runs on PyTorch 2.0 with CUDA 11.8
