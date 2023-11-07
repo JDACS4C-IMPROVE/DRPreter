@@ -49,7 +49,9 @@ python preprocess.py --train_data_name ccle --val_data_name ccle --test_data_nam
 ```
 
 To train:
-
+```bash
+python train.py --train_data_name ccle --val_data_name ccle --test_data_name ccle --train_split_file_name split_0_tr_id --val_split_file_name split_0_vl_id --test_split_file_name split_0_te_id --y_col_name CancID
+```
 
 ```bash
 sh DRPreter/train.sh $(CUDA_VISIBLE_DEVICES) $(CANDLE_DATA_DIR)
