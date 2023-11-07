@@ -4,7 +4,7 @@ import argparse
 from utils import *
 import improve_utils
 from improve_utils import improve_globals as ig
-
+import torch
 from torch_scatter import scatter_add
 
 fdir = Path(__file__).resolve().parent
