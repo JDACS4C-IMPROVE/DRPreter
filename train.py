@@ -251,204 +251,89 @@ def main():
 
     # -----------------------------------------------------------------
 
-    if args.mode == "train":
-        result_col = "mse\trmse\tmae\tpcc\tscc\tr_squared"
+    result_col = "mse\trmse\tmae\tpcc\tscc\tr_squared"
 
-        result_type = "results_sim" if args.sim == True else "results"
-        results_path = get_path(args, result_path, result_type=result_type)
+    result_type = "results_sim" if args.sim == True else "results"
+    results_path = get_path(args, result_path, result_type=result_type)
 
-        with open(results_path, "w+") as f:
-            f.write(result_col + "\n")
-        criterion = nn.MSELoss()
-        opt = torch.optim.Adam(model.parameters(), lr=args.lr)
+    with open(results_path, "w+") as f:
+        f.write(result_col + "\n")
+    criterion = nn.MSELoss()
+    opt = torch.optim.Adam(model.parameters(), lr=args.lr)
 
-        state_dict_name = (
-            f"{rpath}weights/weight_sim_seed{args.seed}.pth"
-            if args.sim == True
-            else f"{rpath}weights/weight_seed{args.seed}.pth"
-        )
-        stopper = EarlyStopping(mode="lower", patience=args.patience, filename=state_dict_name)
+    state_dict_name = (
+        f"{rpath}weights/weight_sim_seed{args.seed}.pth"
+        if args.sim == True
+        else f"{rpath}weights/weight_seed{args.seed}.pth"
+    )
+    stopper = EarlyStopping(mode="lower", patience=args.patience, filename=state_dict_name)
 
-        for epoch in range(1, args.epochs + 1):
-            print(f"===== Epoch {epoch} =====")
-            train_loss = train(model, train_loader, criterion, opt, args)
+    for epoch in range(1, args.epochs + 1):
+        print(f"===== Epoch {epoch} =====")
+        train_loss = train(model, train_loader, criterion, opt, args)
 
-            mse, rmse, mae, pcc, scc, r_squared, _ = validate(model, val_loader, args)
-            results = [epoch, mse, rmse, mae, pcc, scc, r_squared]
-            save_results(results, results_path)
+        mse, rmse, mae, pcc, scc, r_squared, _ = validate(model, val_loader, args)
+        results = [epoch, mse, rmse, mae, pcc, scc, r_squared]
+        save_results(results, results_path)
 
-            print(f"Validation mse: {mse}")
-            test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, test_r_squared, df = validate(
-                model, test_loader, args
-            )
-            print(f"Test mse: {test_MSE}")
-            early_stop = stopper.step(mse, model)
-            if early_stop:
-                break
-
-        print("EarlyStopping! Finish training!")
-        print("Best epoch: {}".format(epoch - stopper.counter))
-
-        stopper.load_checkpoint(model)
-
-        train_MSE, train_RMSE, train_MAE, train_PCC, train_SCC, train_r_squared, _ = validate(
-            model, train_loader, args
-        )
-        val_MSE, val_RMSE, val_MAE, val_PCC, val_SCC, val_r_squared, _ = validate(
-            model, val_loader, args
-        )
+        print(f"Validation mse: {mse}")
         test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, test_r_squared, df = validate(
             model, test_loader, args
         )
+        print(f"Test mse: {test_MSE}")
+        early_stop = stopper.step(mse, model)
+        if early_stop:
+            break
 
-        print("-------- DRPreter -------")
-        print(f"sim: {args.sim}")
-        print(f"##### Seed: {args.seed} #####")
-        print("\t\tMSE\tRMSE\tMAE\tPCC\tSCC\tr_squared")
-        print(
-            "Train result: {}\t{}\t{}\t{}\t{}\t{}".format(
-                r4(train_MSE),
-                r4(train_RMSE),
-                r4(train_MAE),
-                r4(train_PCC),
-                r4(train_SCC),
-                r4(train_r_squared),
-            )
+    print("EarlyStopping! Finish training!")
+    print("Best epoch: {}".format(epoch - stopper.counter))
+
+    stopper.load_checkpoint(model)
+
+    train_MSE, train_RMSE, train_MAE, train_PCC, train_SCC, train_r_squared, _ = validate(
+        model, train_loader, args
+    )
+    val_MSE, val_RMSE, val_MAE, val_PCC, val_SCC, val_r_squared, _ = validate(
+        model, val_loader, args
+    )
+    test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, test_r_squared, df = validate(
+        model, test_loader, args
+    )
+
+    print("-------- DRPreter -------")
+    print(f"sim: {args.sim}")
+    print(f"##### Seed: {args.seed} #####")
+    print("\t\tMSE\tRMSE\tMAE\tPCC\tSCC\tr_squared")
+    print(
+        "Train result: {}\t{}\t{}\t{}\t{}\t{}".format(
+            r4(train_MSE),
+            r4(train_RMSE),
+            r4(train_MAE),
+            r4(train_PCC),
+            r4(train_SCC),
+            r4(train_r_squared),
         )
-        print(
-            "Val result: {}\t{}\t{}\t{}\t{}\t{}".format(
-                r4(val_MSE), r4(val_RMSE), r4(val_MAE), r4(val_PCC), r4(val_SCC), r4(val_r_squared)
-            )
+    )
+    print(
+        "Val result: {}\t{}\t{}\t{}\t{}\t{}".format(
+            r4(val_MSE), r4(val_RMSE), r4(val_MAE), r4(val_PCC), r4(val_SCC), r4(val_r_squared)
         )
-        print(
-            "Test result: {}\t{}\t{}\t{}\t{}\t{}".format(
-                r4(test_MSE),
-                r4(test_RMSE),
-                r4(test_MAE),
-                r4(test_PCC),
-                r4(test_SCC),
-                r4(test_r_squared),
-            )
+    )
+    print(
+        "Test result: {}\t{}\t{}\t{}\t{}\t{}".format(
+            r4(test_MSE),
+            r4(test_RMSE),
+            r4(test_MAE),
+            r4(test_PCC),
+            r4(test_SCC),
+            r4(test_r_squared),
         )
-        df.to_csv(
-            get_path(args, result_path, result_type=result_type + "_df", extension="csv"),
-            sep="\t",
-            index=0,
-        )
-
-    elif args.mode == "test":
-        state_dict_name = (
-            f"{rpath}weights/weight_sim_seed{args.seed}.pth"
-            if args.sim == True
-            else f"{rpath}weights/weight_seed{args.seed}.pth"
-        )
-        model.load_state_dict(
-            torch.load(rpath + state_dict_name, map_location=args.device)["model_state_dict"]
-        )
-
-        #         '''Get embeddings of specific drug and cell line pair'''
-        #         drug_name, cell_name = 'Bortezomib', 'ACH-000137' # 8MGBA
-        #         drug_emb, cell_emb = embedding(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
-        #         print(drug_emb, cell_emb)
-
-        """ Test results only """
-        test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, test_r_squared, df = validate(
-            model, test_loader, args
-        )
-        print("-------- DRPreter -------")
-        print(f"sim: {args.sim}")
-        print(f"##### Seed: {args.seed} #####")
-        print("\t\tMSE\tRMSE\tMAE\tPCC\tSCC\tr_squared")
-        print(
-            "Test result: {}\t{}\t{}\t{}\t{}\t{}".format(
-                r4(test_MSE),
-                r4(test_RMSE),
-                r4(test_MAE),
-                r4(test_PCC),
-                r4(test_SCC),
-                r4(test_r_squared),
-            )
-        )
-
-        """GradCAM"""
-        # ----- (1) Calculate gradient-based importance score for one cell line-drug pair -----
-        # drug_name, cell_name = 'Dihydrorotenone', 'ACH-001374'
-        # gradcam_path =  get_path(args, rpath + 'GradCAM/', result_type=f'{drug_name}_{cell_name}_gradcam', extension='csv')
-
-        # gene_dict = np.load(rpath + 'Data/Cell/cell_idx2gene_dict.npy', allow_pickle=True)
-
-        # # Save importance score
-        # sorted_cell_node_importance, indices = gradcam(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
-        # idx2gene = [gene_dict[idx] for idx in indices]
-
-        # sorted_cell_node_importance = list(sorted_cell_node_importance.cpu().detach().numpy())
-        # indice = list(indices)
-
-        # df = pd.DataFrame((zip(sorted_cell_node_importance, indice, idx2gene)), columns=['cell_node_importance','indice','idx2gene'])
-        # # df.to_csv(gradcam_path, index=False)
-        # print(*list(df['idx2gene'])[:30])
-
-        # ----- (2) Calculate scores from total test set in 'inference.csv' -----
-        # data = pd.read_excel(f'inference_seed{args.seed}.xlsx', sheet_name='test')
-        # name = data[['Drug name', 'DepMap_ID']]
-
-        # gene_dict = np.load(rpath + 'Data/Cell/cell_idx2gene_dict.npy', allow_pickle=True)
-
-        # total_gene_df = pd.Series(list(range(len(data))))
-        # for i in tqdm(range(len(data))):
-        #     drug_name, cell_name = name.iloc[i]
-        #     _, indices = gradcam(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
-        #     idx2gene = [gene_dict[idx] for idx in indices]
-        #     gene_df = pd.DataFrame(idx2gene)
-        #     total_gene_df.loc[i] = ', '.join(list(gene_df.drop_duplicates(keep='first')[0])[:5])
-
-        # data['Top5 genes'] = total_gene_df
-        # data.to_excel(f'inference_seed{args.seed}_gradcam.xlsx', sheet_name='test')
-
-        """Visualize pathway-drug self-attention score from Transformer"""
-        # ----- (1) For one cell line - drug pair -----
-
-        # drug_name, cell_name = 'Rapamycin', 'ACH-000019'
-
-        # # print(cell_name)
-        # attn_score = attention_score(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
-        # print(f'attn_score: {attn_score}')
-        # print(f'attn_score.shape: {attn_score.shape}') # attn_score.shape: torch.Size([1, 35, 35])
-        # # print(torch.sum(attn_score, axis=1))
-        # with open(rpath+'Data/Cell/34pathway_score990.pkl', 'rb') as file:
-        #     pathway_names = pickle.load(file).keys()
-        # tks = [p[5:] for p in list(pathway_names)]
-        # tks.append(drug_name)
-        # # print(tks)
-        # draw_pair_heatmap(attn_score, drug_name, cell_name, tks, args)
-
-        # ----- (2) Heatmap of all cell lines of one drug -----
-
-        # drug_name = 'Rapamycin'
-        # data = pd.read_csv(f'./Data/{drug_name}.csv')
-        # cell_list = list(data['DepMap_ID'])
-
-        # result_dict = {}
-        # total_result = np.full(35, 0)
-        # for cell_name in tqdm(cell_list):
-        #     attn_score = attention_score(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
-        #     print(attn_score.shape)
-        #     attn_score = torch.squeeze(attn_score).cpu().detach().numpy()
-        #     print(np.sum(attn_score, axis=1))
-        #     result_dict[cell_name] = attn_score[-1, :] # (35, 1)
-        #     total_result = np.vstack([total_result, attn_score[-1, :]])
-
-        # with open(rpath+'Data/Cell/34pathway_score990.pkl', 'rb') as file:
-        #     pathway_names = pickle.load(file).keys()
-        # xtks = [p[5:] for p in list(pathway_names)]
-        # xtks.append(drug_name)
-        # total_result = total_result[1:,:-1]
-        # draw_drug_heatmap(total_result, drug_name, xtks, cell_list, args)
-
-        """Interpolation of unknown values"""
-
-
-#         inference(model, drug_dict, cell_dict, edge_index, f'inference_seed{args.seed}.xlsx', args)
+    )
+    df.to_csv(
+        get_path(args, result_path, result_type=result_type + "_df", extension="csv"),
+        sep="\t",
+        index=0,
+    )
 
 
 if __name__ == "__main__":
