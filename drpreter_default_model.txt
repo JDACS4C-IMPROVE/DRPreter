@@ -13,8 +13,31 @@ dropout_ratio=0.1
 patience=100
 string_edge=990
 edge='STRING'
-dataset='disjoint'
+graph_type='disjoint'
 trans=True
 sim=False
 
+[Preprocess]
+train_split_file = "CCLE_split_0_train.txt"
+val_split_file = "CCLE_split_0_val.txt"
+test_split_file = "CCLE_split_0_test.txt"
+ml_data_outdir = "./ml_data/CCLE-CCLE/split_0"
+pathway_data_dir = "./extra_data"
+data_format = ".pt"
+y_data_files = [["response.tsv"]]
+x_data_canc_files = [["cancer_gene_expression.tsv", ["Gene_Symbol"]]]
+x_data_drug_files = [["drug_SMILES.tsv"]]
 
+[Train]
+train_ml_data_dir = "./ml_data/CCLE-CCLE/split_0"
+val_ml_data_dir = "./ml_data/CCLE-CCLE/split_0"
+model_outdir = "./out_models/CCLE/split_0"
+model_file_name = "model"
+model_file_format = ".pt"
+
+[Test]
+test_ml_data_dir = "./ml_data/CCLE-CCLE/split_0"
+model_dir = "./out_models/CCLE/split_0"
+infer_outdir = "./out_infer/CCLE-CCLE/split_0"
+test_batch = 128
+cuda_name = "cuda:0"

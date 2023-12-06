@@ -1,3 +1,4 @@
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -312,9 +313,9 @@ class MyDataset(Dataset):
         IC.reset_index(
             drop=True, inplace=True
         )  # Discard old indexes after train_test_split and rearrange with the new indexes
-        self.drug_name = IC["DrugID"]
-        self.Cell_line_name = IC["CancID"]
-        self.value = IC["AUC"]
+        self.drug_name = IC["improve_sample_id"]
+        self.Cell_line_name = IC["improve_chem_id"]
+        self.value = IC["auc"]
         # self.edge_index = torch.tensor(edge_index, dtype=torch.long)
         self.edge_index = edge_index
 
@@ -376,6 +377,40 @@ def _collate_MLP_multi(samples):
         [torch.stack(exp, 0), torch.stack(cn, 0), torch.stack(mu, 0)],
         torch.tensor(labels),
     )
+
+
+def save_data_stage(drug_dict, cell_dict, response, edge_index, data_name, params):
+    """Loads data for the current stage and saves as `.pt`"""
+    save_path = os.path.join(params["ml_data_outdir"], "processed", data_name)
+
+    if not Path(save_path).parent.exists():
+        Path(save_path).parent.mkdir(parents=True)
+    
+    Dataset = MyDataset
+    collate_fn = _collate
+    stage_dataset = Dataset(
+        drug_dict,
+        cell_dict,
+        response,
+        edge_index=edge_index,
+    )
+
+    torch.save(stage_dataset, save_path)
+
+
+def stage_dataloader(stage_dataset_path, params):
+    """Reads saved dataset and creates PyTorch Dataloader"""
+    stage_dataset = torch.load(stage_dataset_path)
+
+    loader = DataLoader(
+        stage_dataset,
+        batch_size=params["batch_size"],
+        shuffle=True,
+        collate_fn=collate_fn,
+        num_workers=4,
+    )
+
+    return loader
 
 
 def load_data(rs_tr, rs_te, rs_vl, drug_dict, cell_dict, edge_index, args):  # For PPI network

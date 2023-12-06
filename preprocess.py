@@ -3,85 +3,147 @@ from rdkit import Chem
 import numpy as np
 import pandas as pd
 import torch
-import torch_geometric
 from dgllife.utils import *
+
 
 # From cellline_graph.py
 import os
-import csv
-import scipy
-import torch.nn as nn
-from torch_geometric.data import Data, Batch
-from torch_geometric.nn import graclus, max_pool
+from torch_geometric.data import Data
+from torch_scatter import scatter_add
 from sklearn.preprocessing import StandardScaler
 from sklearn.impute import SimpleImputer
 from scipy import sparse
 import pickle
-from tqdm import trange, tqdm
+from tqdm import tqdm
+
+# Utils
+from utils import save_data_stage
 
 # From CANDLE
-import sys
 import argparse
 from pathlib import Path
 import candle
-import improve_utils as imp
-from improve_utils import improve_globals as ig
 
+# IMPROVE imports
+from improve import framework as frm
+from improve import drug_resp_pred as drp
 
 # CANDLE implementation of the DRPreter preprocess scripts
 
-fdir = Path(__file__).resolve().parent
+filepath = Path(__file__).resolve().parent
 
-with open("Data/Cell/34pathway_score990.pkl", "rb") as file:
-    kegg = pickle.load(file)
+# [Req] App-specific params (App: monotherapy drug response prediction)
+app_preproc_params = [
+    # These arg should be specified in the [modelname]_default_model.txt:
+    # y_data_files, x_data_canc_files, x_data_drug_files
+    {
+        "name": "y_data_files",
+        "type": str,
+        "help": "List of files that contain the y (prediction variable) data. \
+        Example: [['response.tsv']]",
+    },
+    {
+        "name": "x_data_canc_files",
+        "type": str,
+        "help": "List of feature files including gene_system_identifer. Examples: \n\
+             1) [['cancer_gene_expression.tsv', ['Gene_Symbol']]] \n\
+             2) [['cancer_copy_number.tsv', ['Ensembl', 'Entrez']]].",
+    },
+    {
+        "name": "x_data_drug_files",
+        "type": str,
+        "help": "List of feature files. Examples: \n\
+             1) [['drug_SMILES.tsv']] \n\
+             2) [['drug_SMILES.tsv'], ['drug_ecfp4_nbits512.tsv']]",
+    },
+    {
+        "name": "canc_col_name",
+        "default": "improve_sample_id",
+        "type": str,
+        "help": "Column name in the y (response) data file that contains the cancer sample ids.",
+    },
+    {
+        "name": "drug_col_name",
+        "default": "improve_chem_id",
+        "type": str,
+        "help": "Column name in the y (response) data file that contains the drug ids.",
+    },
+]
 
-"""
-Functions below are used to generate Cell Line Graph
-"""
+# [DRPreter] Model-specific params (Model: DRPreter)
+model_preproc_params = [
+    {
+        "name": "graph_type",
+        "type": str,
+        "default": "disjoint",
+        "help": "Utilize a joint or disjoint graph",
+    },
+    {
+        "name": "edge",
+        "type": str,
+        "default": "STRING",
+        "help": "Where the information from the cellline graph edges is from.",
+    },
+    {
+        "name": "string_edge",
+        "type": str,
+        "default": "990",
+        "help": "The weight of the graph edges.",
+    },
+]
+
+preprocess_params = app_preproc_params + model_preproc_params
+req_preprocess_args = [ll["name"] for ll in preprocess_params]
 
 
-def download_string_dataset():
-    string_data = get_file(
-        "9606.proteins.links.v12.0.txt.gz",
-        "https://stringdb-downloads.org/download/protein.links.v12.0/9606.protein.links.v12.0.txt.gz",
-        unpack=True,
-    )
+# def download_string_dataset():
+#     string_data = get_file(
+#         "9606.proteins.links.v12.0.txt.gz",
+#         "https://stringdb-downloads.org/download/protein.links.v12.0/9606.protein.links.v12.0.txt.gz",
+#         unpack=True,
+#     )
 
-    return string_data
-
-
-def download_kegg_pathways():
-    kegg_pathway = get_file("34pathway_score990.pkl", "", datadir="./data")
-
-    return kegg_pathway
+#     return string_data
 
 
-def save_cell_graph(gene_expression, save_path, graph_type):
-    if Path(Path(save_path) / "cell_feature_std_{type}.npy").exists():
+# def download_kegg_pathways():
+#     kegg_pathway = get_file("34pathway_score990.pkl", "", datadir="./data")
+
+#     return kegg_pathway
+
+
+def save_cell_graph(gene_expression, params):
+    graph_type = params["graph_type"]
+    save_path = params["ml_data_outdir"]
+
+    file_path = os.path.join(params["pathway_data_dir"], "34pathway_score990.pkl")
+    with open(file_path, "rb") as file:
+        kegg = pickle.load(file)
+
+    if Path(Path(save_path) / f"cell_feature_std_{graph_type}.npy").exists():
         print("already exists!")
+
     else:
         exp = gene_expression
-        exp.columns = exp.columns.str[3:]
+        exp = exp.set_index("improve_sample_id")
         index = exp.index
         columns = exp.columns
 
         scaler = StandardScaler()
         exp = scaler.fit_transform(exp)
-        # cn = scaler.fit_transform(cn)
 
         imp_mean = SimpleImputer()
         exp = imp_mean.fit_transform(exp)
 
         exp = pd.DataFrame(exp, index=index, columns=columns)
-        # cn = pd.DataFrame(cn, index=index, columns=columns)
-        # mu = pd.DataFrame(mu, index=index, columns=columns)
+
         cell_names = exp.index
 
         cell_dict = {}
 
         for i in tqdm((cell_names)):
             # joint graph (without pathway)
-            if type == "joint":
+            if graph_type == "joint":
                 gene_list = exp.columns.to_list()
                 gene_list = set()
                 for pw in kegg:
@@ -113,14 +175,16 @@ def save_cell_graph(gene_expression, save_path, graph_type):
         print(cell_dict)
         np.save(os.path.join(save_path, f"cell_feature_std_{graph_type}.npy"), cell_dict)
         print("finish saving cell data!")
-        return gene_list
+        return gene_list, cell_dict
 
 
-def get_STRING_edges(gene_path, ppi_threshold, graph_type, gene_list):
-    save_path = ig.ml_data_dir / f"edge_index_{ppi_threshold}_{graph_type}.npy"
-    if not os.path.exists(save_path):
+def get_STRING_edges(ppi_threshold, graph_type, gene_list, params):
+    save_path = params["ml_data_outdir"]
+    data_path = Path(save_path) / f"edge_index_{ppi_threshold}_{graph_type}.npy"
+    ppi_path = params["pathway_data_dir"]
+    if not os.path.exists(data_path):
         # gene_list
-        ppi = pd.read_csv(gene_path / f"CCLE_2369_{ppi_threshold}.csv", index_col=0)
+        ppi = pd.read_csv(Path(ppi_path) / f"CCLE_2369_{ppi_threshold}.csv", index_col=0)
 
         print("Loaded File")
 
@@ -143,11 +207,11 @@ def get_STRING_edges(gene_path, ppi_threshold, graph_type, gene_list):
         # Conserve edge_index
         print(len(edge_index[0]))
         np.save(
-            ig.ml_data_dir / f"edge_index_{ppi_threshold}_{graph_type}.npy",
+            os.path.join(save_path, f"edge_index_{ppi_threshold}_{graph_type}.npy"),
             edge_index,
         )
     else:
-        edge_index = np.load(save_path)
+        edge_index = np.load(data_path)
 
     return edge_index
 
@@ -253,156 +317,176 @@ def smiles2graph(mol):
     return graph
 
 
-def raw_to_preprocessed(args):
-    root = ig.ml_data_dir
-    os.makedirs(root, exist_ok=True)
+def run(params):
+    """Execute data pre-processing for GraphDRP model.
 
-    # download = True
-    download = False
-    if download:
-        ftp_origin = f"https://ftp.mcs.anl.gov/pub/candle/public/improve/IMP_data"
-        data_file_list = [f"data.{args.train_data_name}.zip"]
-        for f in data_file_list:
-            candle.get_file(
-                fname=f,
-                origin=os.path.join(ftp_origin, f.strip()),
-                unpack=True,
-                md5_hash=None,
-                cache_subdir=None,
-                datadir=ig.raw_data_dir,
-            )
+    :params: Dict params: A dictionary of CANDLE/IMPROVE keywords and parsed values.
+    """
+    # ------------------------------------------------------
+    # [Req] Build paths and create ML data dir
+    # ----------------------------------------
+    # Build paths for raw_data, x_data, y_data, splits
+    params = frm.build_paths(params)
 
-    # Load Train, Test, Val Response Data
+    # Create outdir for ML data (to save preprocessed data)
+    frm.create_outdir(outdir=params["ml_data_outdir"])
+    # ----------------------------------------
 
-    print("\nLoad response train data ...")
-    rs_tr = imp.load_single_drug_response_data_v2(
-        source=args.train_data_name,
-        split_file_name=args.train_split_file_name,
-        y_col_name=args.y_col_name,
-        sep=",",
-        verbose=True,
-    )
+    # ------------------------------------------------------
+    # Construct data frames for drug and cell features
+    # ------------------------------------------------------
+    # df_drug, df_cell_all, smile_graphs = build_common_data(params, indtd)
 
-    print("\nLoad response val data ...")
-    rs_vl = imp.load_single_drug_response_data_v2(
-        source=args.val_data_name,
-        split_file_name=args.val_split_file_name,
-        y_col_name=args.y_col_name,
-        sep=",",
-        verbose=True,
-    )
+    # ------------------------------------------------------
+    # [Req] Load omics data
+    # ---------------------
+    print("\nLoading omics data ...")
+    oo = drp.OmicsLoader(params)
+    # print(oo)
+    gene_expression = oo.dfs["cancer_gene_expression.tsv"]  # get only gene expression dataframe
 
-    print("\nLoad response test data ...")
-    rs_te = imp.load_single_drug_response_data_v2(
-        source=args.test_data_name,
-        split_file_name=args.test_split_file_name,
-        y_col_name=args.y_col_name,
-        sep=",",
-        verbose=True,
-    )
-
-    # Load gene expression data
-    ge_path = Path(ig.raw_data_dir) / f"x_data/ge.csv"
-    ge = pd.read_csv(ig.gene_expression_file_path, sep=",", index_col=0)
-
-    gene_list = save_cell_graph(ge, root, "disjoint")
+    # ------------------------------------------------------
+    # [DRPreter] Prep gene features
+    # ------------------------------------------------------
+    gene_list, cell_dict = save_cell_graph(gene_expression, params)
 
     edge_index = get_STRING_edges(
-        gene_path=fdir / "Data/Cell",
         ppi_threshold="PPI_990",
         graph_type="disjoint",
         gene_list=gene_list,
+        params=params,
     )
     print(f"edge_index: {edge_index}")
 
-    # Load SMILES and build drug features
-    smi = imp.load_smiles_data()
+    example = cell_dict["ACH-000001"]
+    num_feature = example.x.shape[1]
+    num_genes = example.x.shape[0]  # 4646
+    print("here")
+    if "disjoint" in params["graph_type"]:
+        gene_list = scatter_add(
+            torch.ones_like(example.x.squeeze()), example.x_mask.to(torch.int64)
+        ).to(torch.int)
+        max_gene = gene_list.max().item()
+        cum_num_nodes = torch.cat([gene_list.new_zeros(1), gene_list.cumsum(dim=0)], dim=0)
+        n_pathways = gene_list.size(0)
+        print(f"gene distribution: {gene_list}")
+        print(f"mean degree:{len(edge_index[0]) / num_genes}")
+    else:
+        print(f"num_genes:{num_genes}, num_edges:{len(edge_index[0])}")
+        print(f"mean degree:{len(edge_index[0]) / num_genes}")
+
+    # [Req] Load drug data
+    # --------------------
+    print("\nLoading drugs data...")
+    dd = drp.DrugsLoader(params)
+    # print(dd)
+    smi = dd.dfs["drug_SMILES.tsv"]  # get only the SMILES data
+    # --------------------
+    print(f"SMILES: {smi}")
+
+    # ------------------------------------------------------
+    # [DRPreter] Prep drug features
+    # ------------------------------------------------------
+    save_path = params["ml_data_outdir"]
     drug_dict = {}
     for i in range(len(smi)):
-        drug_dict[smi.iloc[i, 0]] = smiles2graph(smi.iloc[i, 1])
-    np.save(Path(root) / "drug_feature_graph.npy", drug_dict)  # Check this path
+        drug_dict[smi.index[i]] = smiles2graph(smi.iloc[i, 0])
+    np.save(os.path.join(save_path, "drug_feature_graph.npy"), drug_dict)
 
-    return ig.ml_data_dir
+    # ------------------------------------------------------
+    # [DRPreter] Construct Dataloaders
+    # Construct ML data for every stage (train, val, test)
+    # [Req] All models must load response data (y data) using DrugResponseLoader().
+    # Below, we iterate over the 3 split files (train, val, test) and load response
+    # data, filtered by the split ids from the split files.
+    # -------------------------------------------
+    stages = {
+        "train": params["train_split_file"],
+        "val": params["val_split_file"],
+        "test": params["test_split_file"],
+    }
+    scaler = None
+
+    for stage, split_file in stages.items():
+        # ------------------------
+        # [Req] Load response data
+        # ------------------------
+        rr = drp.DrugResponseLoader(params, split_file=split_file, verbose=True)
+        # print(rr)
+        df_response = rr.dfs["response.tsv"]
+        # -----------------------
+
+        rs, ge = drp.get_common_samples(
+            df1=df_response,
+            df2=gene_expression,
+            ref_col=params["canc_col_name"],
+        )
+        print(
+            rs[
+                [
+                    params["canc_col_name"],
+                    params["drug_col_name"],
+                ]
+            ].nunique()
+        )
+
+        # Sub-select desired response column (y_col_name)
+        # And reduce response dataframe to 3 columns: drug_id, cell_id and selected drug_response
+        rs = rs[[params["drug_col_name"], params["canc_col_name"], params["y_col_name"]]]
+        # Further prepare data (model-specific)
+        # xd, xc, y = compose_data_arrays(
+        #    ydf, smi, df_canc, params["drug_col_name"], params["canc_col_name"]
+        # )
+        # print(stage.upper(), "data --> xd ", xd.shape, "xc ", xc.shape, "y ", y.shape)
+        # ------------------------
+
+        # -----------------------
+        # [Req] Save ML data files in params["ml_data_outdir"]
+        # The implementation of this step, depends on the model.
+        # -----------------------
+        # import ipdb; ipdb.set_trace()
+        # [Req] Create data name
+        data_fname = frm.build_ml_data_name(
+            params,
+            stage,
+        )
+
+        # Create the ml data and save it as data_fname in params["ml_data_outdir"]
+        # Note! In the *train*.py and *infer*.py scripts, functionality should
+        # be implemented to load the saved data.
+        # -----
+        # In GraphDRP, TestbedDataset() is used to create and save the file.
+        # TestbedDataset() which inherits from torch_geometric.data.InMemoryDataset
+        # automatically creates dir called "processed" inside root and saves the file
+        # inside. This results in: [root]/processed/[dataset],
+        # e.g., ml_data/processed/train_data.pt
+        # -----
+
+        save_data_stage(
+            smi,
+            ge,
+            rs,
+            edge_index=edge_index,
+            data_name=data_fname,
+            params=params,
+        )
+
+        # [Req] Save y dataframe for the current stage
+        frm.save_stage_ydf(rs, params, stage)
 
 
-def parse_args(args):
-    """Parse input arguments"""
-
-    parser = argparse.ArgumentParser()
-
-    # IMPROVE Required args
-    parser.add_argument(
-        "--train_data_name",
-        type=str,
-        required=True,
-        help="Data source name.",
-    )
-    parser.add_argument(
-        "--val_data_name",
-        type=str,
-        default=None,
-        required=False,
-        help="Data target name (not required for GraphDRP).",
-    )
-    parser.add_argument(
-        "--test_data_name",
-        type=str,
-        default=None,
-        required=False,
-        help="Data target name (not required for GraphDRP).",
-    )
-    parser.add_argument(
-        "--train_split_file_name",
-        type=str,
-        nargs="+",
-        required=True,
-        help="The path to the file that contains the split ids (e.g., 'split_0_tr_id',  'split_0_vl_id').",
-    )
-    parser.add_argument(
-        "--val_split_file_name",
-        type=str,
-        nargs="+",
-        required=True,
-        help="The path to the file that contains the split ids (e.g., 'split_0_tr_id',  'split_0_vl_id').",
-    )
-    parser.add_argument(
-        "--test_split_file_name",
-        type=str,
-        nargs="+",
-        required=True,
-        help="The path to the file that contains the split ids (e.g., 'split_0_tr_id',  'split_0_vl_id').",
-    )
-    parser.add_argument(
-        "--y_col_name",
-        type=str,
-        required=True,
-        help="Drug sensitivity score to use as the target variable (e.g., IC50, AUC).",
-    )
-    parser.add_argument(
-        "--outdir",
-        type=str,
-        required=True,
-        help="Output dir to store the generated ML data files (e.g., 'split_0_tr').",
-    )
-    parser.add_argument("--receipt", type=str, required=False, help="...")
-
-    args = parser.parse_args(args)
-    return args
-
-
-def main(args):
+def main():
     # Load in arguments needed for preprocessing
-    args = parse_args(args)
-    ml_data_path = raw_to_preprocessed(args)
-    print(f"\nML data path:\t\n{ml_data_path}")
-    print("\nFinished pre-processing (transformed raw DRP data to model input ML data).")
+    additional_definitions = preprocess_params
+    params = frm.initialize_parameters(
+        filepath,
+        default_model="drpreter_default_model.txt",
+        additional_definitions=additional_definitions,
+        required=req_preprocess_args,
+    )
+    processed_outdir = run(params)
+    print("\nFinished DRPreter pre-processing (transformed raw DRP data to model input ML data).")
 
-    return ml_data_path
-
-
-"""
-Main Run Method
-"""
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    main()
