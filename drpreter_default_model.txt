@@ -29,11 +29,18 @@ x_data_canc_files = [["cancer_gene_expression.tsv", ["Gene_Symbol"]]]
 x_data_drug_files = [["drug_SMILES.tsv"]]
 
 [Train]
-train_ml_data_dir = "./ml_data/CCLE-CCLE/split_0"
-val_ml_data_dir = "./ml_data/CCLE-CCLE/split_0"
+train_ml_data_dir = "./ml_data/CCLE-CCLE/split_0/processed"
+val_ml_data_dir = "./ml_data/CCLE-CCLE/split_0/processed"
 model_outdir = "./out_models/CCLE/split_0"
 model_file_name = "model"
 model_file_format = ".pt"
+num_feature=1
+num_genes=4641
+max_gene=351
+cum_num_nodes=[   0,  142,  235,  372,  666,  740,  895, 1112, 1191, 1337, 1527, 1663,
+        1956, 2123, 2196, 2427, 2486, 2725, 2834, 2937, 3021, 3147, 3248, 3469,
+        3528, 3584, 3655, 3699, 4050, 4212, 4308, 4410, 4451, 4539, 4641]
+n_pathways=34
 
 [Test]
 test_ml_data_dir = "./ml_data/CCLE-CCLE/split_0"

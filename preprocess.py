@@ -359,21 +359,27 @@ def run(params):
     print(f"edge_index: {edge_index}")
 
     example = cell_dict["ACH-000001"]
-    num_feature = example.x.shape[1]
-    num_genes = example.x.shape[0]  # 4646
-    print("here")
+    params["num_feature"] = example.x.shape[1]
+    print(f'Num Features: {params["num_feature"]}')
+    params["num_genes"] = example.x.shape[0]  # 4646
+    print(f'Num Genes: {params["num_genes"]}')
     if "disjoint" in params["graph_type"]:
         gene_list = scatter_add(
             torch.ones_like(example.x.squeeze()), example.x_mask.to(torch.int64)
         ).to(torch.int)
-        max_gene = gene_list.max().item()
-        cum_num_nodes = torch.cat([gene_list.new_zeros(1), gene_list.cumsum(dim=0)], dim=0)
-        n_pathways = gene_list.size(0)
+        params["max_gene"] = gene_list.max().item()
+        print(f"Max Gene: {params['max_gene']}")
+        params["cum_num_nodes"] = torch.cat(
+            [gene_list.new_zeros(1), gene_list.cumsum(dim=0)], dim=0
+        )
+        print(f"cum_num_nodes: {params['cum_num_nodes']}")
+        params["n_pathways"] = gene_list.size(0)
+        print(f"N Pathways: {params['n_pathways']}")
         print(f"gene distribution: {gene_list}")
-        print(f"mean degree:{len(edge_index[0]) / num_genes}")
+        print(f"mean degree:{len(edge_index[0]) / params['num_genes']}")
     else:
-        print(f"num_genes:{num_genes}, num_edges:{len(edge_index[0])}")
-        print(f"mean degree:{len(edge_index[0]) / num_genes}")
+        print(f"num_genes:{params['num_genes']}, num_edges:{len(edge_index[0])}")
+        print(f"mean degree:{len(edge_index[0]) / params['num_genes']}")
 
     # [Req] Load drug data
     # --------------------

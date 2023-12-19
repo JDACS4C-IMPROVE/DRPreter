@@ -23,24 +23,24 @@ class CellEncoder(torch.nn.Module):
 
             self.convs_cell.append(conv)
 
-  
     def forward(self, cell):
         for i in range(self.layer_cell):
             cell.x = F.relu(self.convs_cell[i](cell.x, cell.edge_index))
 
-        node_representation = cell.x.reshape(-1, self.final_node * self.dim_cell) # val_mse on 1st epohc ~=  1.6
+        node_representation = cell.x.reshape(
+            -1, self.final_node * self.dim_cell
+        )  # val_mse on 1st epohc ~=  1.6
         # node_representation = global_add_pool(cell.x, cell.batch) # performance down: val_mse on 1st epoch  ~= 2.5
 
         return node_representation
-    
-     
+
     def grad_cam(self, cell):
         for i in range(self.layer_cell):
             cell.x = F.relu(self.convs_cell[i](cell.x, cell.edge_index))
             if i == 0:
                 cell_node = cell.x
                 cell_node.retain_grad()
-                
+
         node_representation = cell.x.reshape(-1, self.final_node * self.dim_cell)
 
         return cell_node, node_representation

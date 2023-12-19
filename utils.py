@@ -1,24 +1,25 @@
-import os
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import numpy as np
-import pandas as pd
-import random
-import pickle
 import math
+import os
+import pickle
+import random
 from pathlib import Path
-from Model.DRPreter import DRPreter
-from torch.utils.data import Dataset, DataLoader
-from torch_geometric.data import Batch
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, r2_score
-from scipy.stats import pearsonr, spearmanr
-from tqdm import tqdm
-import matplotlib.pyplot as plt
-import seaborn as sns
-import openpyxl
 
+import matplotlib.pyplot as plt
+import numpy as np
+import openpyxl
+import pandas as pd
+import seaborn as sns
+import torch
+import torch.nn.functional as F
+from scipy.stats import pearsonr, spearmanr
+from sklearn.metrics import mean_absolute_error, r2_score
+from sklearn.model_selection import train_test_split
+from torch import nn
+from torch.utils.data import DataLoader, Dataset
+from torch_geometric.data import Batch
+from tqdm import tqdm
+
+from Model.DRPreter import DRPreter
 
 rpath = "./"
 dict_dir = rpath + "Data/Similarity/dict/"
@@ -40,8 +41,8 @@ def save_results(results, filename):
         f.write("\t".join(map(str, results)) + "\n")
 
 
-def get_path(args, result_path="", result_type="results", extension="txt"):
-    path = Path(result_path) / f"{result_type}_seed{str(args.seed)}.{extension}"
+def get_path(params, result_type="results", extension="txt"):
+    path = Path(params["model_outdir"]) / f"{result_type}_seed{params['seed']}.{extension}"
     return path
 
 
@@ -58,9 +59,9 @@ def get_path(args, result_path="", result_type="results", extension="txt"):
 #     return path
 
 
-def train(model, loader, loss_fn, opt, args):
+def train(model, loader, loss_fn, opt, params):
     model.train()
-    device = args.device
+    device = params["device"]
 
     for data in tqdm(loader, desc="Iteration"):
         drug, cell, label = data
@@ -79,18 +80,18 @@ def train(model, loader, loss_fn, opt, args):
         opt.zero_grad()
         loss.backward()
         opt.step()
-    print("Train Loss:{}".format(loss))
+    # print("Train Loss:{}".format(loss))
 
     return loss
 
 
-def validate(model, loader, args):
+def validate(model, loader, params):
     model.eval()
-    device = args.device
+    device = params["device"]
 
     y_true = []
     y_pred = []
-    print(y_true, y_pred)
+    # print(y_true, y_pred)
     total_loss = 0
     with torch.no_grad():
         for data in tqdm(loader, desc="Iteration"):
@@ -110,18 +111,20 @@ def validate(model, loader, args):
 
     y_true = torch.cat(y_true, dim=0)
     y_pred = torch.cat(y_pred, dim=0)
-    print(y_true.cpu().numpy().flatten())
-    print(y_pred.cpu().numpy().flatten())
-    df = np.array([y_pred.squeeze().cpu().numpy(), y_true.squeeze().cpu().numpy()])
-    df = pd.DataFrame(df.T, columns=["y_pred", "y_true"])
 
-    mse = (total_loss / len(loader.dataset)).cpu().detach().numpy()
-    rmse = (torch.sqrt(total_loss / len(loader.dataset))).cpu().detach().numpy()
-    mae = mean_absolute_error(y_true.cpu(), y_pred.cpu())
-    pcc = pearsonr(y_true.cpu().numpy().flatten(), y_pred.cpu().numpy().flatten())[0]
-    scc = spearmanr(y_true.cpu().numpy().flatten(), y_pred.cpu().numpy().flatten())[0]
-    r_squared = r2_score(y_true.cpu().numpy().flatten(), y_pred.cpu().numpy().flatten())
-    return mse, rmse, mae, pcc, scc, r_squared, df
+    return y_true, y_pred
+    # # print(y_true.cpu().numpy().flatten())
+    # # print(y_pred.cpu().numpy().flatten())
+    # df = np.array([y_pred.squeeze().cpu().numpy(), y_true.squeeze().cpu().numpy()])
+    # df = pd.DataFrame(df.T, columns=["y_pred", "y_true"])
+
+    # mse = (total_loss / len(loader.dataset)).cpu().detach().numpy()
+    # rmse = (torch.sqrt(total_loss / len(loader.dataset))).cpu().detach().numpy()
+    # mae = mean_absolute_error(y_true.cpu(), y_pred.cpu())
+    # pcc = pearsonr(y_true.cpu().numpy().flatten(), y_pred.cpu().numpy().flatten())[0]
+    # scc = spearmanr(y_true.cpu().numpy().flatten(), y_pred.cpu().numpy().flatten())[0]
+    # r_squared = r2_score(y_true.cpu().numpy().flatten(), y_pred.cpu().numpy().flatten())
+    # return mse, rmse, mae, pcc, scc, r_squared, df
 
 
 def gradcam(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args):
@@ -155,7 +158,8 @@ def gradcam(model, drug_name, cell_name, drug_dict, cell_dict, edge_index, args)
     cell_node_importance = torch.relu(
         (cell_node * torch.mean(cell_node.grad, dim=0)).sum(dim=1)
     )  # for regression task
-    # cell_node_importance = torch.abs((cell_node * torch.mean(cell_node.grad, dim=0)).sum(dim=1)) # for classification task
+    # cell_node_importance = torch.abs((cell_node * torch.mean(cell_node.grad, dim=0)).sum(dim=1))
+    # for classification task
     cell_node_importance = cell_node_importance / cell_node_importance.sum()
     sorted, indices = torch.sort(cell_node_importance, descending=True)
 
@@ -385,7 +389,7 @@ def save_data_stage(drug_dict, cell_dict, response, edge_index, data_name, param
 
     if not Path(save_path).parent.exists():
         Path(save_path).parent.mkdir(parents=True)
-    
+
     Dataset = MyDataset
     collate_fn = _collate
     stage_dataset = Dataset(
@@ -401,7 +405,7 @@ def save_data_stage(drug_dict, cell_dict, response, edge_index, data_name, param
 def stage_dataloader(stage_dataset_path, params):
     """Reads saved dataset and creates PyTorch Dataloader"""
     stage_dataset = torch.load(stage_dataset_path)
-
+    collate_fn = _collate
     loader = DataLoader(
         stage_dataset,
         batch_size=params["batch_size"],
@@ -448,11 +452,16 @@ class EarlyStopping:
     def __init__(self, mode="higher", patience=10, filename=None, metric=None):
         """
         Args:
-            mode (str):   'higher': Higher metric suggests a better model / 'lower': Lower metric suggests a better model
-            patience (int): The early stopping will happen if we do not observe performance improvement for 'patience' consecutive epochs.
+            mode (str):
+                'higher': Higher metric suggests a better model
+                'lower': Lower metric suggests a better model
+            patience (int): The early stopping will happen if we do not observe performance
+                improvement for 'patience' consecutive epochs.
             filename (str, optional): Filename for storing the model checkpoint.
-                                                  If not specified, it will automatically generate a file starting with 'early_stop' based on the current time.
-            metric (str, optional):  A metric name that can be used to identify if a higher value is better, or vice versa.
+                If not specified, it will automatically generate a file starting with 'early_stop'
+                based on the current time.
+            metric (str, optional):  A metric name that can be used to identify if a higher value
+                is better, or vice versa.
         """
         if metric is not None:
             assert metric in ["r2", "mae", "rmse", "roc_auc_score", "pr_auc_score"], (
@@ -632,7 +641,7 @@ def load_sim_graph(edge_index, args):
         Batch.from_data_list(cell_graph).to(args.device)
     ).detach()  # torch.no_grad() and detach() can be seen as almost the same.
 
-    with open(f"./Data/Similarity/edge/drug_cell_edges_5_knn", "rb") as f:
+    with open("./Data/Similarity/edge/drug_cell_edges_5_knn", "rb") as f:
         drug_edges, cell_edges = pickle.load(f)
 
     drug_edges = torch.tensor(drug_edges, dtype=torch.long).t()

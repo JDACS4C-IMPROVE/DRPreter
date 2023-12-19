@@ -209,9 +209,7 @@ def launch(args):
             torch.ones_like(example.x.squeeze()), example.x_mask.to(torch.int64)
         ).to(torch.int)
         args.max_gene = gene_list.max().item()
-        args.cum_num_nodes = torch.cat(
-            [gene_list.new_zeros(1), gene_list.cumsum(dim=0)], dim=0
-        )
+        args.cum_num_nodes = torch.cat([gene_list.new_zeros(1), gene_list.cumsum(dim=0)], dim=0)
         args.n_pathways = gene_list.size(0)
         print(f"gene distribution: {gene_list}")
         print(f"mean degree:{len(edge_index[0]) / args.num_genes}")
@@ -219,17 +217,17 @@ def launch(args):
         print(f"num_genes:{args.num_genes}, num_edges:{len(edge_index[0])}")
         print(f"mean degree:{len(edge_index[0]) / args.num_genes}")
 
-    print('CPU/GPU: ', torch.cuda.is_available())
+    print("CPU/GPU: ", torch.cuda.is_available())
     if os.getenv("CUDA_VISIBLE_DEVICES") is not None:
         print("CUDA_VISIBLE_DEVICES:", os.getenv("CUDA_VISIBLE_DEVICES"))
-        #cuda_name = f"cuda:{int(os.getenv('CUDA_VISIBLE_DEVICES'))}"
+        # cuda_name = f"cuda:{int(os.getenv('CUDA_VISIBLE_DEVICES'))}"
         cuda_name = "cuda:0"
     else:
         cuda_name = args.device
 
     # Setting appropriate device
     device = torch.device(cuda_name if torch.cuda.is_available() else "cpu")
-    
+
     # ---- [1] Pathway + Transformer ----
     if args.sim is False:
         train_loader, val_loader, test_loader = load_data(
@@ -260,9 +258,9 @@ def launch(args):
             torch.tensor(edge_index, dtype=torch.long), args
         )
 
-        model = Similarity(
-            drug_nodes_data, cell_nodes_data, drug_edges, cell_edges, args
-        ).to(device)
+        model = Similarity(drug_nodes_data, cell_nodes_data, drug_edges, cell_edges, args).to(
+            device
+        )
 
     result_col = "mse\trmse\tmae\tpcc\tscc"
 
@@ -279,9 +277,7 @@ def launch(args):
         if args.sim is True
         else f"{candle_data_dir}/weight_seed{args.seed}.pth"
     )
-    stopper = EarlyStopping(
-        mode="lower", patience=args.patience, filename=state_dict_name
-    )
+    stopper = EarlyStopping(mode="lower", patience=args.patience, filename=state_dict_name)
 
     for epoch in range(1, args.epochs + 1):
         print(f"===== Epoch {epoch} =====")
@@ -292,22 +288,16 @@ def launch(args):
         save_results(results, results_path)
 
         print(f"Validation mse: {mse}")
-        test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, df = validate(
-            model, test_loader, args
-        )
+        test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, df = validate(model, test_loader, args)
         print(f"Test mse: {test_MSE}")
         early_stop = stopper.step(mse, model)
         if early_stop:
             break
 
     stopper.load_checkpoint(model)
-    train_MSE, train_RMSE, train_MAE, train_PCC, train_SCC, _ = validate(
-        model, train_loader, args
-    )
+    train_MSE, train_RMSE, train_MAE, train_PCC, train_SCC, _ = validate(model, train_loader, args)
     val_MSE, val_RMSE, val_MAE, val_PCC, val_SCC, _ = validate(model, val_loader, args)
-    test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, df = validate(
-        model, test_loader, args
-    )
+    test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, df = validate(model, test_loader, args)
 
     print("-------- DRPreter -------")
     print(f"sim: {args.sim}")
