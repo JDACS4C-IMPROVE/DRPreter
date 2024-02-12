@@ -62,8 +62,9 @@ def get_path(params, result_type="results", extension="txt"):
 def train(model, loader, loss_fn, opt, params):
     model.train()
     device = params["device"]
-
+    print(f"Loader: {loader}")
     for data in tqdm(loader, desc="Iteration"):
+        print(data)
         drug, cell, label = data
         # multi omics
         if isinstance(cell, list):
@@ -317,21 +318,31 @@ class MyDataset(Dataset):
         IC.reset_index(
             drop=True, inplace=True
         )  # Discard old indexes after train_test_split and rearrange with the new indexes
-        self.drug_name = IC["improve_sample_id"]
-        self.Cell_line_name = IC["improve_chem_id"]
+        self.drug_name = IC["improve_chem_id"]
+        self.Cell_line_name = IC["improve_sample_id"]
         self.value = IC["auc"]
         # self.edge_index = torch.tensor(edge_index, dtype=torch.long)
         self.edge_index = edge_index
+        self.cell = self.cell.set_index("improve_sample_id")
 
     def __len__(self):
         return len(self.value)
 
     def __getitem__(self, index):
-        self.cell[self.Cell_line_name[index]].edge_index = self.edge_index
+        print("+++++++++++++++++++")
+        print(f"INDEX: {index}")
+        print(f"cell: {self.cell}")
+        print(f"cell_name: {self.Cell_line_name[index]}")
+
+        self.cell.T[self.Cell_line_name[index]].edge_index = self.edge_index
         # self.cell[self.Cell_line_name[index]].adj_t = SparseTensor(row=self.edge_index[0], col=self.edge_index[1])
+        print(f"Drug: {self.drug.T[self.drug_name[index]]}")
+        print(f"Cell: {self.cell.T[self.Cell_line_name[index]]}")
+        print(f"Value: {self.value[index]}")
+
         return (
-            self.drug[self.drug_name[index]],
-            self.cell[self.Cell_line_name[index]],
+            self.drug.T[self.drug_name[index]],
+            self.cell.T[self.Cell_line_name[index]],
             self.value[index],
         )
 
@@ -413,7 +424,6 @@ def stage_dataloader(stage_dataset_path, params):
         collate_fn=collate_fn,
         num_workers=4,
     )
-
     return loader
 
 

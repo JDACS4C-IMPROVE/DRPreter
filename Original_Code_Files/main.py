@@ -17,17 +17,11 @@ def arg_parse():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=42, help="seed")
     parser.add_argument("--device", type=int, default=0, help="device")
-    parser.add_argument(
-        "--batch_size", type=int, default=128, help="batch size (default: 128)"
-    )
-    parser.add_argument(
-        "--lr", type=float, default=0.0001, help="learning rate (default: 0.0001)"
-    )
+    parser.add_argument("--batch_size", type=int, default=128, help="batch size (default: 128)")
+    parser.add_argument("--lr", type=float, default=0.0001, help="learning rate (default: 0.0001)")
     parser.add_argument("--layer", type=int, default=3, help="Number of cell layers")
     parser.add_argument("--hidden_dim", type=int, default=8, help="hidden dim for cell")
-    parser.add_argument(
-        "--layer_drug", type=int, default=3, help="Number of drug layers"
-    )
+    parser.add_argument("--layer_drug", type=int, default=3, help="Number of drug layers")
     parser.add_argument(
         "--dim_drug", type=int, default=128, help="hidden dim for drug (default: 128)"
     )
@@ -68,9 +62,7 @@ def arg_parse():
         default="2369disjoint",
         help="2369joint, 2369disjoint, COSMIC",
     )
-    parser.add_argument(
-        "--trans", type=bool, default=True, help="Use Transformer or not"
-    )
+    parser.add_argument("--trans", type=bool, default=True, help="Use Transformer or not")
     parser.add_argument(
         "--sim",
         type=bool,
@@ -112,9 +104,7 @@ def main():
             torch.ones_like(example.x.squeeze()), example.x_mask.to(torch.int64)
         ).to(torch.int)
         args.max_gene = gene_list.max().item()
-        args.cum_num_nodes = torch.cat(
-            [gene_list.new_zeros(1), gene_list.cumsum(dim=0)], dim=0
-        )
+        args.cum_num_nodes = torch.cat([gene_list.new_zeros(1), gene_list.cumsum(dim=0)], dim=0)
         args.n_pathways = gene_list.size(0)
         print("num_genes:{}, num_edges:{}".format(args.num_genes, len(edge_index[0])))
         print("gene distribution: {}".format(gene_list))
@@ -155,9 +145,9 @@ def main():
             torch.tensor(edge_index, dtype=torch.long), args
         )
 
-        model = Similarity(
-            drug_nodes_data, cell_nodes_data, drug_edges, cell_edges, args
-        ).to(args.device)
+        model = Similarity(drug_nodes_data, cell_nodes_data, drug_edges, cell_edges, args).to(
+            args.device
+        )
         # print(model)
 
     # -----------------------------------------------------------------
@@ -170,7 +160,7 @@ def main():
 
         with open(results_path, "w") as f:
             f.write(result_col + "\n")
-        criterion = nn.MSELoss()
+        criterion = nn.MELoss()
         opt = torch.optim.Adam(model.parameters(), lr=args.lr)
 
         state_dict_name = (
@@ -178,9 +168,7 @@ def main():
             if args.sim == True
             else f"{rpath}weights/weight_seed{args.seed}.pth"
         )
-        stopper = EarlyStopping(
-            mode="lower", patience=args.patience, filename=state_dict_name
-        )
+        stopper = EarlyStopping(mode="lower", patience=args.patience, filename=state_dict_name)
 
         for epoch in range(1, args.epochs + 1):
             print(f"===== Epoch {epoch} =====")
@@ -207,12 +195,8 @@ def main():
         train_MSE, train_RMSE, train_MAE, train_PCC, train_SCC, _ = validate(
             model, train_loader, args
         )
-        val_MSE, val_RMSE, val_MAE, val_PCC, val_SCC, _ = validate(
-            model, val_loader, args
-        )
-        test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, df = validate(
-            model, test_loader, args
-        )
+        val_MSE, val_RMSE, val_MAE, val_PCC, val_SCC, _ = validate(model, val_loader, args)
+        test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, df = validate(model, test_loader, args)
 
         print("-------- DRPreter -------")
         print(f"sim: {args.sim}")
@@ -238,9 +222,7 @@ def main():
             )
         )
         df.to_csv(
-            get_path(
-                args, result_path, result_type=result_type + "_df", extension="csv"
-            ),
+            get_path(args, result_path, result_type=result_type + "_df", extension="csv"),
             sep="\t",
             index=0,
         )
@@ -252,9 +234,7 @@ def main():
             else f"{rpath}weights/weight_seed{args.seed}.pth"
         )
         model.load_state_dict(
-            torch.load(rpath + state_dict_name, map_location=args.device)[
-                "model_state_dict"
-            ]
+            torch.load(rpath + state_dict_name, map_location=args.device)["model_state_dict"]
         )
 
         #         '''Get embeddings of specific drug and cell line pair'''
@@ -263,9 +243,7 @@ def main():
         #         print(drug_emb, cell_emb)
 
         """ Test results only """
-        test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, df = validate(
-            model, test_loader, args
-        )
+        test_MSE, test_RMSE, test_MAE, test_PCC, test_SCC, df = validate(model, test_loader, args)
         print("-------- DRPreter -------")
         print(f"sim: {args.sim}")
         print(f"##### Seed: {args.seed} #####")

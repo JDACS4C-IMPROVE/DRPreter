@@ -14,17 +14,20 @@ def atom_to_feature_vector(atom):
     :return: list
     8 features are canonical, 2 features are from OGB
     """
-    featurizer_funcs = ConcatFeaturizer([atom_type_one_hot,
-                                         atom_degree_one_hot,
-                                         atom_implicit_valence_one_hot,
-                                         atom_formal_charge,
-                                         atom_num_radical_electrons,
-                                         atom_hybridization_one_hot,
-                                         atom_is_aromatic,
-                                         atom_total_num_H_one_hot,
-                                         atom_is_in_ring,
-                                         atom_chirality_type_one_hot,
-                                         ])
+    featurizer_funcs = ConcatFeaturizer(
+        [
+            atom_type_one_hot,
+            atom_degree_one_hot,
+            atom_implicit_valence_one_hot,
+            atom_formal_charge,
+            atom_num_radical_electrons,
+            atom_hybridization_one_hot,
+            atom_is_aromatic,
+            atom_total_num_H_one_hot,
+            atom_is_in_ring,
+            atom_chirality_type_one_hot,
+        ]
+    )
     atom_feature = featurizer_funcs(atom)
     return atom_feature
 
@@ -35,11 +38,14 @@ def bond_to_feature_vector(bond):
     :param mol: rdkit bond object
     :return: list
     """
-    featurizer_funcs = ConcatFeaturizer([bond_type_one_hot,
-                                         # bond_is_conjugated,
-                                         # bond_is_in_ring,
-                                         # bond_stereo_one_hot,
-                                         ])
+    featurizer_funcs = ConcatFeaturizer(
+        [
+            bond_type_one_hot,
+            # bond_is_conjugated,
+            # bond_is_in_ring,
+            # bond_stereo_one_hot,
+        ]
+    )
     bond_feature = featurizer_funcs(bond)
 
     return bond_feature
@@ -64,7 +70,7 @@ def smiles2graph(mol):
     x = np.array(atom_features_list, dtype=np.int64)
 
     # bonds
-#     num_bond_features = 3  # bond type, bond stereo, is_conjugated
+    #     num_bond_features = 3  # bond type, bond stereo, is_conjugated
     num_bond_features = 1  # bond type
     if len(mol.GetBonds()) > 0:  # mol has bonds
         edges_list = []
@@ -91,24 +97,27 @@ def smiles2graph(mol):
         edge_index = np.empty((2, 0), dtype=np.int64)
         edge_attr = np.empty((0, num_bond_features), dtype=np.int64)
 
-    graph = Data(x=torch.tensor(x, dtype=torch.float),
-                 edge_index=torch.tensor(edge_index, dtype=torch.long),
-                 edge_attr=torch.tensor(edge_attr), dtype=torch.float)
+    graph = Data(
+        x=torch.tensor(x, dtype=torch.float),
+        edge_index=torch.tensor(edge_index, dtype=torch.long),
+        edge_attr=torch.tensor(edge_attr),
+        dtype=torch.float,
+    )
 
     return graph
 
 
 def save_drug_graph():
-    smiles = pd.read_csv('Data/Drug/drug_smiles.csv')
+    smiles = pd.read_csv("Data/Drug/drug_smiles.csv")
     drug_dict = {}
     for i in range(len(smiles)):
         drug_dict[smiles.iloc[i, 0]] = smiles2graph(smiles.iloc[i, 2])
-    np.save('Data/Drug/drug_feature_graph.npy', drug_dict)
+    np.save("Data/Drug/drug_feature_graph.npy", drug_dict)
     return drug_dict
 
 
-if __name__ == '__main__':
-#     graph = smiles2graph('O1C=C[C@H]([C@H]1O2)c3c2cc(OC)c4c3OC(=O)C5=C4CCC(=O)5')
-#     print(graph.x.shape)
-#     print(graph.edge_attr.shape)
+if __name__ == "__main__":
+    #     graph = smiles2graph('O1C=C[C@H]([C@H]1O2)c3c2cc(OC)c4c3OC(=O)C5=C4CCC(=O)5')
+    #     print(graph.x.shape)
+    #     print(graph.edge_attr.shape)
     save_drug_graph()

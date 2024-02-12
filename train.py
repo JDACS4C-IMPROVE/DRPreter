@@ -3,21 +3,19 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from improve import drug_resp_pred as drp
-from improve import framework as frm
-from torch_scatter import scatter_add
-from typing import Dict
-from utils import *
 
 # [Req] IMPROVE/CANDLE imports
 from improve import framework as frm
 from improve.metrics import compute_metrics
-
-# [Req] Imports from preprocess script
-from preprocess import preprocess_params
+from torch_scatter import scatter_add
 
 from Model.DRPreter import DRPreter
 from Model.Similarity import Similarity
+
+# [Req] Imports from preprocess script
+from preprocess import preprocess_params
+from utils import *
+from utils import save_results
 
 
 filepath = Path(__file__).resolve().parent
@@ -37,7 +35,7 @@ filepath = Path(__file__).resolve().parent
 # Currently, there are no app-specific params for this script.
 app_train_params = []
 
-# 2. Model-specific params (Model: LightGBM)
+# 2. Model-specific params (Model: DRPreter)
 # All params in model_train_params are optional.
 # If no params are required by the model, then it should be an empty list.
 model_train_params = [
@@ -65,7 +63,7 @@ train_params = app_train_params + model_train_params
 metrics_list = ["mse", "rmse", "pcc", "scc", "r2"]
 
 
-def run(params: Dict):
+def run(params: dict):
     # ------------------------------------------------------
     # [Req] Create output dir and build model path
     # ------------------------------------------------------
@@ -92,7 +90,7 @@ def run(params: Dict):
     # ------------------------------------------------------
     if os.getenv("CUDA_VISIBLE_DEVICES") is not None:
         print("CUDA_VISIBLE_DEVICES:", os.getenv("CUDA_VISIBLE_DEVICES"))
-        # cuda_name = f"cuda:{int(os.getenv('CUDA_VISIBLE_DEVICES'))}"
+        # Cuda_name = f"cuda:{int(os.getenv('CUDA_VISIBLE_DEVICES'))}"
         cuda_name = "cuda:0"
     else:
         cuda_name = params["device"]
@@ -127,10 +125,10 @@ def run(params: Dict):
             val_loader,
             params,
         )
-        val_scores = frm.compute_metrics(val_true, val_pred, metrics_list)
+        val_scores = compute_metrics(val_true, val_pred, metrics_list)
         val_mse = val_scores["mse"]
         # results = [epoch, mse, rmse, mae, pcc, scc, r_squared]
-        save_results(val_scores, results_path)
+        frm.save_results(val_scores, results_path)
 
         print(f"Validation mse: {val_mse}")
 
@@ -150,7 +148,7 @@ def run(params: Dict):
     #    model, val_loader, params
     # )
 
-    val_true, val_pred = validate(
+    val_true, val_pred = frm.validate(
         model,
         val_loader,
         params,
@@ -189,7 +187,7 @@ def main():
     )
 
     val_scores = run(params)
-    print("\nFinished training DRPreter Model")
+    # print("\nFinished training DRPreter Model")
 
 
 if __name__ == "__main__":
